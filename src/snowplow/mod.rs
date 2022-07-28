@@ -20,4 +20,32 @@ impl Snowplow {
         self.trackers.push(tracker);
         self.trackers.last_mut().unwrap()
     }
+
+    pub fn remove_tracker(self: &mut Snowplow, namespace: String, app_id: String) {
+        let mut index = 0;
+        for (i, t) in self.trackers.iter().enumerate() {
+            if t.app_id == app_id && t.namespace == namespace {
+                index = i;
+                break;
+            }
+        }
+
+        self.trackers.remove(index);
+    }
+
+    pub fn get_tracker(
+        self: &mut Snowplow,
+        namespace: String,
+        app_id: String,
+    ) -> Option<&mut Tracker> {
+        let mut index = 0;
+        for (i, t) in self.trackers.iter().enumerate() {
+            if t.app_id == app_id && t.namespace == namespace {
+                index = i;
+                break;
+            }
+        }
+
+        Some(self.trackers.get_mut(index).unwrap())
+    }
 }

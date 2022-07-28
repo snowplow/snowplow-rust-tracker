@@ -1,9 +1,9 @@
 use crate::snowplow::emitter::Emitter;
 
 pub struct Tracker {
-    namespace: String,
-    app_id: String,
-    emitter: Emitter,
+    pub namespace: String,
+    pub app_id: String,
+    pub emitter: Emitter,
 }
 
 impl Tracker {
