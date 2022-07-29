@@ -1,5 +1,5 @@
 use snowplow_rust_tracker::snowplow::Snowplow;
-use serde_json::json;
+// use serde_json::json;
 
 fn main() {
     let mut sp = Snowplow::new();

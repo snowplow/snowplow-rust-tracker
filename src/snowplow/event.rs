@@ -11,10 +11,10 @@ impl Event {
         self
     }
 
-    // pub fn set_true_timestamp(&mut self, timestamps: i64) -> &mut Event {
-    //     self.true_timestamp: timestamps;
-    //     self
-    // }
+    pub fn set_true_timestamp(&mut self, timestamps: i64) -> &mut Event {
+        self.true_timestamp = timestamps;
+        self
+    }
 }
 
 
