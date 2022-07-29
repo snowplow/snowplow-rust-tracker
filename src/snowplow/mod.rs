@@ -1,6 +1,6 @@
-mod emitter;
-mod tracker;
-mod event;
+pub mod emitter;
+pub mod event;
+pub mod tracker;
 
 use emitter::Emitter;
 use std::fmt::{self, Formatter};

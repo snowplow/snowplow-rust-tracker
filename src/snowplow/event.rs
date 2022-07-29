@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[derive(Serialize, Deserialize)]
 pub struct Event {
-    true_timestamp: i64,
-    context: Vec<SelfDescribingJson>,
+    pub true_timestamp: i64,
+    pub context: Vec<SelfDescribingJson>,
 }
 
 impl Event {
@@ -17,30 +19,31 @@ impl Event {
     }
 }
 
-
+#[derive(Serialize, Deserialize)]
 struct SelfDescribingEvent {
-    event: Event,
-    json: SelfDescribingJson,
+    pub event: Event,
+    pub json: SelfDescribingJson,
 }
 
-
+#[derive(Serialize, Deserialize)]
 pub struct SelfDescribingJson {
-    schema: String,
-    data: Value,
+    pub schema: String,
+    pub data: Value,
 }
 
-
+#[derive(Serialize, Deserialize)]
 struct StructuredEvent {
-    event: Event,
-    category: String,
-    action: String,
-    property: String,
-    label: String,
-    value: u128,
+    pub event: Event,
+    pub category: String,
+    pub action: String,
+    pub property: String,
+    pub label: String,
+    pub value: u128,
 }
 
-struct ScreenViewEvent {
-    event: Event,
-    name: String,
-    id: String,
+#[derive(Serialize, Deserialize)]
+pub struct ScreenViewEvent {
+    pub event: Event,
+    pub name: String,
+    pub id: String,
 }
