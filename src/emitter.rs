@@ -1,5 +1,5 @@
 use reqwest::Client;
-use crate::snowplow::payload::Payload;
+use crate::payload::Payload;
 use serde_json::json;
 
 pub struct Emitter {

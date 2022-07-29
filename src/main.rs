@@ -1,8 +1,8 @@
 use serde_json::json;
-use snowplow_rust_tracker::snowplow::emitter::Emitter;
-use snowplow_rust_tracker::snowplow::event::ScreenViewEvent;
-use snowplow_rust_tracker::snowplow::event::StructuredEvent;
-use snowplow_rust_tracker::snowplow::tracker::Tracker;
+use snowplow_rust_tracker::emitter::Emitter;
+use snowplow_rust_tracker::event::ScreenViewEvent;
+use snowplow_rust_tracker::event::StructuredEvent;
+use snowplow_rust_tracker::tracker::Tracker;
 
 #[tokio::main]
 async fn main() {

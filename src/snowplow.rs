@@ -1,10 +1,6 @@
-pub mod emitter;
-pub mod event;
-pub mod tracker;
-
-use emitter::Emitter;
+use crate::emitter::Emitter;
 use std::fmt::{self, Formatter};
-use tracker::Tracker;
+use crate::tracker::Tracker;
 
 #[derive(Debug, Clone)]
 pub struct NoSuchTracker {

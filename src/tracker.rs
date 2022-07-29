@@ -1,13 +1,13 @@
 
-use crate::snowplow::Emitter;
-use crate::snowplow::payload::{Payload, PayloadBuilder};
-use crate::snowplow::payload::EventType;
+use crate::emitter::Emitter;
+use crate::payload::{Payload, PayloadBuilder};
+use crate::payload::EventType;
 use uuid::Uuid;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use crate::snowplow::event::SelfDescribingJson;
-use crate::snowplow::event::StructuredEvent;
-use crate::snowplow::event::ScreenViewEvent;
+use crate::event::SelfDescribingJson;
+use crate::event::StructuredEvent;
+use crate::event::ScreenViewEvent;
 use serde_json::json;
 
 pub struct TrackerConfig {
