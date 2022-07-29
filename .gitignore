@@ -8,3 +8,13 @@ target/
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
+
+## Generic
+.idea
+*~
+*.lock
+*.DS_Store
+*.swp
+*.out
+.envrc
+.terraform
