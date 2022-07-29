@@ -1,4 +1,6 @@
 use reqwest::Client;
+use crate::snowplow::payload::Payload;
+use serde_json::json;
 
 pub struct Emitter {
     pub collector_url: String,
@@ -13,11 +15,14 @@ impl Emitter {
         }
     }
 
-    pub async fn post<T>(&self, payload: T, url: &str) -> Result<String, reqwest::Error>
-    where
-        T: serde::Serialize,
-    {
+    pub async fn post(&self, payload: Payload, url: &str) -> Result<String, reqwest::Error> {
         let collector_url = url.to_string() + "/com.snowplowanalytics.snowplow/tp2";
+
+        let payload = json!({
+            "schema": "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4",
+            "data": vec![payload]
+        });
+
         let resp = self
             .http_client
             .post(collector_url)
