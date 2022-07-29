@@ -50,7 +50,7 @@ impl Snowplow {
         emitter: Emitter,
     ) -> &Tracker {
         let trackers = &mut self.trackers;
-        let tracker = Tracker::new(namespace, app_id, emitter);
+        let tracker = Tracker::new(&namespace, &app_id, emitter);
         trackers.push(tracker);
         trackers.last().unwrap()
     }

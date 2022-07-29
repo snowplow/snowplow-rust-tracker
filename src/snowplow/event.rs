@@ -40,12 +40,12 @@ pub struct SelfDescribingJson {
 }
 
 impl SelfDescribingJson {
-    pub fn from_schema_and_data(schema: String, data: String) -> Result<Self, serde_json::Error> {
+    pub fn from_schema_and_data(schema: &str, data: &str) -> Result<Self, serde_json::Error> {
         let data: Value = serde_json::from_str(&data)?;
         Ok(SelfDescribingJson {
             schema: "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"
                 .to_string(),
-            data: SelfDescribingData { schema, data },
+            data: SelfDescribingData { schema: schema.to_string(), data },
         })
     }
 }
@@ -67,17 +67,19 @@ impl Serialize for SelfDescribingJson {
     }
 }
 
-#[derive(Serialize, Deserialize, Builder)]
+#[derive(Serialize, Deserialize, Builder, PartialEq)]
 pub struct StructuredEvent {
+    #[builder(setter(into))]
     pub category: String,
+    #[builder(setter(into))]
     pub action: String,
-    #[builder(default)]
+    #[builder(setter(into), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub property: Option<String>,
-    #[builder(default)]
+    #[builder(setter(into), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
-    #[builder(default)]
+    #[builder(setter(into), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     // serde isn't happy with u128 and I'm not sure why
     pub value: Option<u64>,
@@ -91,7 +93,9 @@ impl StructuredEvent {
 
 #[derive(Serialize, Deserialize, Builder)]
 pub struct ScreenViewEvent {
+    #[builder(setter(into))]
     pub name: String,
+    #[builder(setter(into))]
     pub id: String,
 }
 

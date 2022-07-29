@@ -30,10 +30,10 @@ pub enum TrackingError {
 }
 
 impl Tracker {
-    pub fn new(namespace: String, app_id: String, emitter: Emitter) -> Tracker {
+    pub fn new(namespace: &str, app_id: &str, emitter: Emitter) -> Tracker {
         Tracker {
-            namespace,
-            app_id,
+            namespace: namespace.to_string(),
+            app_id: app_id.to_string(),
             emitter,
             config: TrackerConfig {
                 platform: "pc".to_string(),
@@ -61,7 +61,7 @@ impl Tracker {
         self.emitter.post(payload, &self.emitter.collector_url).await
     }
 
-    pub async fn track_self_describing_event(&self, schema: String, data: String) -> Result<String, TrackingError> {
+    pub async fn track_self_describing_event(&self, schema: &str, data: &str) -> Result<String, TrackingError> {
         let evnt = SelfDescribingJson::from_schema_and_data(schema, data).unwrap();
 
         let payload_builder = Payload::builder()
@@ -93,8 +93,8 @@ impl Tracker {
 
     pub async fn track_screen_view(&self, screen_view: ScreenViewEvent) -> Result<String, TrackingError> {
         match self.track_self_describing_event(
-            "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0".to_string(),
-            json!(screen_view).to_string(),
+            "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0",
+            &json!(screen_view).to_string(),
         ).await {
             Ok(res) => Ok(res),
             Err(e) => Err(e),

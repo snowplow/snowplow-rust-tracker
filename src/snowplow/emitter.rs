@@ -8,9 +8,9 @@ pub struct Emitter {
 }
 
 impl Emitter {
-    pub fn new(collector_url: String) -> Emitter {
+    pub fn new(collector_url: &str) -> Emitter {
         Emitter {
-            collector_url,
+            collector_url: collector_url.to_string(),
             http_client: Client::new(),
         }
     }
