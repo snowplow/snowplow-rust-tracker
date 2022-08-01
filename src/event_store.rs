@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 use crate::payload::{BatchPayload, Payload};
 
 
-pub trait EventStore {  // TODO - use generic instead of store explicit
+pub trait EventStore {
     fn add_event(&self, payload: Payload) -> bool;
     fn get_event_batch(&self, batch_id: &Arc<AtomicU64>, amount: u32) -> Option<BatchPayload>;
     fn delete_by_ids(&self, ids: Vec<uuid::Uuid>) -> bool;
