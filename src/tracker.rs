@@ -58,6 +58,8 @@ impl Tracker {
             .build()
             .unwrap();
 
+        self.emitter.add(&payload);
+
         self.emitter.post(payload, &self.emitter.collector_url).await
     }
 

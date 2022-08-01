@@ -27,13 +27,13 @@ pub struct SelfDescribingEvent {
     pub json: SelfDescribingJson,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SelfDescribingData {
     pub schema: String,
     pub data: Value,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct SelfDescribingJson {
     pub schema: String,
     pub data: SelfDescribingData,
