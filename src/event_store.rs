@@ -5,14 +5,6 @@ use std::sync::atomic::Ordering;
 use crate::payload::{BatchPayload, Payload};
 
 
-/**
-TODO
-- change trait so it does not take mutex arc hardcoded -> generic type
-- EventStore trait is reachable outside and injectable in Emitter
-- instatiate InMemory in main
-- InMemory is reachable outside
-- Create add and remove
-**/
 pub trait EventStore {  // TODO - use generic instead of store explicit
     fn add_event(&self, payload: Payload) -> bool;
     fn get_event_batch(&self, batch_id: &Arc<AtomicU64>, amount: u32) -> Option<BatchPayload>;
