@@ -7,17 +7,14 @@ pub struct Emitter {
     pub collector_url: String,
     http_client: Client,
     store: Box<dyn EventStore>,
-    // store: InMemoryEventStore,
 }
 
 impl Emitter {
     pub fn new(collector_url: &str, event_store: impl EventStore + 'static) -> Emitter {
-    // pub fn new(collector_url: &str, event_store: &InMemoryEventStore) -> Emitter {
         Emitter {
             collector_url: collector_url.to_string(),
             http_client: Client::new(),
             store: Box::new(event_store),
-            // store: event_store,
         }
     }
 
