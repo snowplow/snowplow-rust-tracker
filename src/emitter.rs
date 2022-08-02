@@ -1,17 +1,20 @@
 use reqwest::Client;
 use crate::payload::Payload;
 use serde_json::json;
+use crate::event_store::EventStore;
 
 pub struct Emitter {
     pub collector_url: String,
     http_client: Client,
+    store: Box<dyn EventStore>,
 }
 
 impl Emitter {
-    pub fn new(collector_url: &str) -> Emitter {
+    pub fn new(collector_url: &str, event_store: impl EventStore + 'static) -> Emitter {
         Emitter {
             collector_url: collector_url.to_string(),
             http_client: Client::new(),
+            store: Box::new(event_store),
         }
     }
 
@@ -32,4 +35,10 @@ impl Emitter {
 
         resp.text().await
     }
+
+    pub fn add(&self, payload: &Payload) -> () {
+        self.store.add_event(payload.clone());
+    }
 }
+
+

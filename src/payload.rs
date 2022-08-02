@@ -2,7 +2,7 @@ use super::event::SelfDescribingJson;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EventType {
     #[serde(rename(serialize = "pv"))]
     PageView,
@@ -22,13 +22,18 @@ pub enum EventType {
     SelfDescribingEvent,
 }
 
-#[derive(Builder, Serialize, Deserialize, Default)]
+pub struct BatchPayload {
+    pub id: u64,
+    pub payloads: Vec<Payload>,
+}
+
+#[derive(Builder, Serialize, Deserialize, Default, Clone, Debug)]
 #[builder(field(public))]
 #[builder(pattern = "owned")]
 pub struct Payload {
     p: String,
     tv: String,
-    eid: uuid::Uuid,
+    pub eid: uuid::Uuid,
     dtm: String,
     stm: String,
     #[builder(setter(strip_option))]
