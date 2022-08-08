@@ -1,9 +1,9 @@
 [package]
-name = "snowplow-rust-tracker"
+name = "snowplow_rust_tracker"
+description = "A package for tracking Snowplow events in Rust apps"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "Apache-2.0"
 
 [dependencies]
 reqwest = { version = "0.11", features = ["json"] }
