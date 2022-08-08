@@ -1,83 +1,31 @@
+// Copyright (c) 2022 Snowplow Analytics Ltd. All rights reserved.
+//
+// This program is licensed to you under the Apache License Version 2.0,
+// and you may not use this file except in compliance with the Apache License Version 2.0.
+// You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the Apache License Version 2.0 is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+
 use crate::emitter::Emitter;
-use std::fmt::{self, Formatter};
 use crate::tracker::Tracker;
 
-#[derive(Debug, Clone)]
-pub struct NoSuchTracker {
-    pub app_id: String,
-    pub namespace: String,
-}
+pub struct Snowplow;
 
-impl fmt::Display for NoSuchTracker {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "Tracker not found: {:?}", self)
-    }
-}
-pub struct Snowplow {
-    trackers: Vec<Tracker>,
-}
-
-// The "main object that manages trackers" concept will be difficult to implement for rust
+/// Main interface for the package used to initialize trackers.
 impl Snowplow {
-    pub fn new() -> Snowplow {
-        Snowplow {
-            trackers: Vec::new(),
-        }
-    }
 
-    /*
-    When you create a tracker, you require a mutable reference to the Snowplow object you
-    have created using Snowplow::new(). This mutable reference will live until the returned value,
-    the new tracker, is out of scope.
-
-    You are only allowed a _single_ mutable reference to a variable, otherwise the compiler will complain
-    We will likely (for now) just have the user manage it all, meaning:
-
-    Remove the `main Snowplow object` concept entirely, and provide direct access to:
-        - Tracker
-        - Emitter
-
-    2.
-    */
+    /// Creates a new Tracker instance that can be used to track events
     pub fn create_tracker(
-        &mut self,
-        namespace: String,
-        app_id: String,
-        emitter: Emitter,
-    ) -> &Tracker {
-        let trackers = &mut self.trackers;
-        let tracker = Tracker::new(&namespace, &app_id, emitter);
-        trackers.push(tracker);
-        trackers.last().unwrap()
+        namespace: &str,
+        app_id: &str,
+        collector_url: &str,
+    ) -> Tracker {
+        let emitter = Emitter::new(collector_url);
+        let tracker = Tracker::new(namespace, app_id, emitter);
+        tracker
     }
 
-    pub fn remove_tracker(
-        &mut self,
-        namespace: String,
-        app_id: String,
-    ) -> Result<(), NoSuchTracker> {
-        let index = self
-            .trackers
-            .iter()
-            .position(|t| t.app_id == app_id && t.namespace == namespace);
-
-        match index {
-            Some(i) => {
-                self.trackers.remove(i);
-                Ok(())
-            }
-            None => Err(NoSuchTracker { namespace, app_id }),
-        }
-    }
-
-    pub fn get_tracker(&self, namespace: String, app_id: String) -> Option<&Tracker> {
-        match self
-            .trackers
-            .iter()
-            .position(|t| t.app_id == app_id && t.namespace == namespace)
-        {
-            Some(pos) => self.trackers.get(pos),
-            _ => None,
-        }
-    }
 }
