@@ -2,7 +2,6 @@
 
 [![early-release]][tracker-classificiation]
 [![Build Status][gh-actions-image]][gh-actions]
-[![Release][release-image]][releases]
 [![License][license-image]][license]
 
 Snowplow is a scalable open-source platform for rich, high quality, low-latency data collection. It is designed to collect high quality, complete behavioral data for enterprise business.
@@ -14,7 +13,6 @@ Snowplow is a scalable open-source platform for rich, high quality, low-latency 
 The Snowplow Rust Tracker allows you to add analytics to your Rust apps when using a [Snowplow][snowplow] pipeline.
 
 With this tracker you can collect granular event-level data as your users interact with your Rust applications.
-It is build on top of Snowplow's native [iOS](https://github.com/snowplow/snowplow-objc-tracker) and [Android](https://github.com/snowplow/snowplow-android-tracker) and [web](https://github.com/snowplow/snowplow-javascript-tracker) trackers, in order to support the full range of out-of-the-box Snowplow events and tracking capabilities.
 
 **Technical documentation can be found for each tracker in our [Documentation][rust-docs].**
 
@@ -22,24 +20,17 @@ It is build on top of Snowplow's native [iOS](https://github.com/snowplow/snowpl
 
 ### Installation
 
-Add the `snowplow_rust_tracker` as a dependency in `Cargo.toml` inside your Rust application:
-
-```bash
-[dependencies]
-snowplow_rust_tracker = "0.1"
-```
-
-This will add a line with the dependency like this to your `pubspec.yaml`:
+Add the `snowplow_tracker` as a dependency in `Cargo.toml` inside your Rust application:
 
 ```yml
-dependencies:
-    snowplow_tracker: ^0.1.0
+[dependencies]
+snowplow_tracker = "0.1"
 ```
 
-Import the package into your Dart code:
+Use the package APIs in your code:
 
-```dart
-import 'package:snowplow_tracker/snowplow_tracker.dart'
+```rust
+use snowplow_tracker::Snowplow;
 ```
 
 ### Using the Tracker
@@ -139,8 +130,7 @@ limitations under the License.
 [license]: https://www.apache.org/licenses/LICENSE-2.0
 [license-image]: https://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 
-[release-image]: https://img.shields.io/pub/v/snowplow_tracker
-[releases]: https://pub.dev/packages/snowplow_tracker
+[releases]: https://crates.io/crates/snowplow_tracker
 
 [techdocs]: https://docs.snowplowanalytics.com/docs/collecting-data/collecting-from-own-applications/rust-tracker/
 [techdocs-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/techdocs.png

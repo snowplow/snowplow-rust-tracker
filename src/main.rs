@@ -10,7 +10,7 @@
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use serde_json::json;
-use snowplow_rust_tracker::{Snowplow, Event, ScreenViewEvent, StructuredEvent, SelfDescribingJson, SelfDescribingEvent};
+use snowplow_tracker::{Snowplow, Event, ScreenViewEvent, StructuredEvent, SelfDescribingJson, SelfDescribingEvent};
 use uuid::Uuid;
 
 #[tokio::main]

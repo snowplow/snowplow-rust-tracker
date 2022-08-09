@@ -1,5 +1,5 @@
 [package]
-name = "snowplow_rust_tracker"
+name = "snowplow_tracker"
 description = "A package for tracking Snowplow events in Rust apps"
 version = "0.1.0"
 edition = "2021"
