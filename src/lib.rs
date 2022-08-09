@@ -9,6 +9,33 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
+//! # Snowplow Rust Tracker
+//!
+//! The Snowplow Rust Tracker allows you to track Snowplow events in your Rust applications.
+//!
+//! ## Example usage
+//!
+//! ```
+//! use snowplow_tracker::{Snowplow, Event, SelfDescribingJson, SelfDescribingEvent};
+//! use serde_json::json;
+//!
+//! // Initialize a tracker instance given a namespace, application ID, and Snowplow collector URL
+//! let tracker = Snowplow::create_tracker("ns", "app_id", "https://...");
+//!
+//! // Tracking a self-describing event with a context entity
+//! tracker.track(
+//!     Event::SelfDescribing(
+//!         SelfDescribingEvent {
+//!             schema: "iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1".to_string(),
+//!             data: json!({"targetUrl": "http://a-target-url.com"})
+//!         }
+//!     ), 
+//!     Some(vec![
+//!         SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
+//!     ])
+//! );
+//! ```
+
 mod tracker;
 mod emitter;
 mod event;
