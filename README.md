@@ -51,24 +51,20 @@ Please refer to the documentation for specification of event properties.
 ```dart
 // Tracking a screen view event
 tracker.track(
-    Event::ScreenView(
-        ScreenViewEvent::builder()
-            .id(Uuid::new_v4())
-            .name("a screen view")
-            .build()
-            .unwrap()
-    ),
+    ScreenViewEvent::builder()
+        .id(Uuid::new_v4())
+        .name("a screen view")
+        .build()
+        .unwrap(),
     None
 ).await;
 
 // Tracking a self-describing event with a context entity
 tracker.track(
-    Event::SelfDescribing(
-        SelfDescribingEvent {
-            schema: "iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1".to_string(),
-            data: json!({"targetUrl": "http://a-target-url.com"})
-        }
-    ), 
+    SelfDescribingEvent {
+        schema: "iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1".to_string(),
+        data: json!({"targetUrl": "http://a-target-url.com"})
+    },
     Some(vec![
         SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
     ])
@@ -76,16 +72,14 @@ tracker.track(
 
 // Tracking a structured event
 tracker.track(
-    Event::Structured(
-        StructuredEvent::builder()
-            .category("shop")
-            .action("add-to-basket")
-            .label("Add To Basket")
-            .property("pcs")
-            .value(2.0)
-            .build()
-            .unwrap()
-    ),
+    StructuredEvent::builder()
+        .category("shop")
+        .action("add-to-basket")
+        .label("Add To Basket")
+        .property("pcs")
+        .value(2.0)
+        .build()
+        .unwrap(),
     None
 ).await
 ```

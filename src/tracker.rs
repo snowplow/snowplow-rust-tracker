@@ -10,12 +10,11 @@
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use crate::emitter::Emitter;
-use crate::payload::{Payload, PayloadBuilder, SelfDescribingEventData, ContextData, EventType, SelfDescribingJson};
-use crate::event::{SelfDescribingEvent, Event, StructuredEvent, ScreenViewEvent};
+use crate::payload::{Payload, ContextData, SelfDescribingJson};
+use crate::event::EventBuildable;
 use uuid::Uuid;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use serde_json::json;
 
 pub struct TrackerConfig {
     pub platform: String,
@@ -50,7 +49,7 @@ impl Tracker {
     }
 
     /// Tracks a Snowplow event with optional context entities and sends it to the Snowplow collector.
-    pub async fn track(&self, event: Event, context: Option<Vec<SelfDescribingJson>>) -> Option<Uuid> {
+    pub async fn track(&self, event: impl EventBuildable, context: Option<Vec<SelfDescribingJson>>) -> Option<Uuid> {
         let since_the_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
@@ -68,44 +67,11 @@ impl Tracker {
             payload_builder = payload_builder.co(ContextData::new(context.to_vec()));
         }
 
-        let payload = self.build_event_payload(event, payload_builder);
+        let payload = event.build_payload(payload_builder);
         if self.emitter.add(payload).await.is_ok() {
             Some(event_id)
         } else {
             None
         }
-    }
-
-    fn build_event_payload(&self, event: Event, payload_builder: PayloadBuilder) -> Payload {
-        match event {
-            Event::SelfDescribing(self_describing) => self.build_self_describing_event_payload(self_describing, payload_builder),
-            Event::Structured(structured) => self.build_structured_event_payload(structured, payload_builder),
-            Event::ScreenView(screen_view) => self.build_screen_view_payload(screen_view, payload_builder)
-        }.build().unwrap()
-    }
-
-    fn build_self_describing_event_payload(&self, event: SelfDescribingEvent, payload_builder: PayloadBuilder) -> PayloadBuilder {
-        payload_builder
-            .e(EventType::SelfDescribingEvent)
-            .ue_pr(SelfDescribingEventData::new(SelfDescribingJson { schema: event.schema, data: event.data }))
-    }
-
-    fn build_structured_event_payload(&self, struct_event: StructuredEvent, payload_builder: PayloadBuilder) -> PayloadBuilder {
-        payload_builder
-            .e(EventType::StructuredEvent)
-            .se_ca(struct_event.category)
-            .se_ac(struct_event.action)
-            .se_pr(struct_event.property)
-            .se_la(struct_event.label)
-            .se_va(if let Some(value) = struct_event.value { Some(value.to_string()) } else { None })
-    }
-
-    fn build_screen_view_payload(&self, screen_view: ScreenViewEvent, payload_builder: PayloadBuilder) -> PayloadBuilder {
-        let event = SelfDescribingEvent::builder()
-            .schema("iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0")
-            .data(json!(screen_view))
-            .build()
-            .unwrap();
-        self.build_self_describing_event_payload(event, payload_builder)
     }
 }

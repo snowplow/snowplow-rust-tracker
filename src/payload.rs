@@ -37,7 +37,7 @@ pub struct Payload {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(setter(strip_option))]
-    ue_pr: Option<SelfDescribingEventData>,
+    pub(crate) ue_pr: Option<SelfDescribingEventData>,
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(setter(strip_option))]
@@ -46,20 +46,20 @@ pub struct Payload {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(setter(strip_option))]
-    se_ca: Option<String>,
+    pub(crate) se_ca: Option<String>,
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(setter(strip_option))]
-    se_ac: Option<String>,
+    pub(crate) se_ac: Option<String>,
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    se_la: Option<String>,
+    pub(crate) se_la: Option<String>,
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    se_pr: Option<String>,
+    pub(crate) se_pr: Option<String>,
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    se_va: Option<String>,
+    pub(crate) se_va: Option<String>,
 }
 
 impl Payload {

@@ -11,23 +11,14 @@
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
-/// Enum representing the supported types of events that can be tracked.
-pub enum Event {
-    /// Event to track custom information that does not fit into the out-of-the box events.
-    ///
-    /// Self-describing events are a [data structure based on JSON Schemas](https://docs.snowplowanalytics.com/docs/understanding-tracking-design/understanding-schemas-and-validation/) and can have arbitrarily many fields.
-    /// To define your own custom self-describing event, you must create a JSON schema for that event and upload it to an [Iglu Schema Repository](https://github.com/snowplow/iglu) using [igluctl](https://docs.snowplowanalytics.com/docs/open-source-components-and-applications/iglu/) (or if a Snowplow BDP customer, you can use the [Snowplow BDP Console UI](https://docs.snowplowanalytics.com/docs/understanding-tracking-design/managing-data-structures/) or [Data Structures API](https://docs.snowplowanalytics.com/docs/understanding-tracking-design/managing-data-structures-via-the-api-2/)).
-    /// Snowplow uses the schema to validate that the JSON containing the event properties is well-formed.
-    SelfDescribing(SelfDescribingEvent),
+use crate::payload::{EventType, SelfDescribingEventData, PayloadBuilder, Payload, SelfDescribingJson};
 
-    /// Event to capture custom consumer interactions without the need to define a custom schema.
-    Structured(StructuredEvent),
-
-    /// Event to track user viewing a screen within the application.
-    ScreenView(ScreenViewEvent)
+/// Trait implemented by event types that enables the tracker to build their payload to be sent to the Collector.
+pub trait EventBuildable {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload;
 }
 
 /// Event to track custom information that does not fit into the out-of-the box events.
@@ -53,6 +44,19 @@ pub struct SelfDescribingEvent {
 impl SelfDescribingEvent {
     pub fn builder() -> SelfDescribingEventBuilder {
         SelfDescribingEventBuilder::default()
+    }
+}
+
+impl EventBuildable for SelfDescribingEvent {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
+        payload_builder
+            .e(EventType::SelfDescribingEvent)
+            .ue_pr(SelfDescribingEventData::new(SelfDescribingJson::new(
+                &self.schema,
+                self.data,
+            )))
+            .build()
+            .unwrap()
     }
 }
 
@@ -95,6 +99,20 @@ pub struct StructuredEvent {
 impl StructuredEvent {
     pub fn builder() -> StructuredEventBuilder {
         StructuredEventBuilder::default()
+    }
+}
+
+impl EventBuildable for StructuredEvent {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
+        payload_builder
+            .e(EventType::StructuredEvent)
+            .se_ca(self.category)
+            .se_ac(self.action)
+            .se_pr(self.property)
+            .se_la(self.label)
+            .se_va(if let Some(value) = self.value { Some(value.to_string()) } else { None })
+            .build()
+            .unwrap()
     }
 }
 
@@ -148,6 +166,17 @@ impl ScreenViewEvent {
     }
 }
 
+impl EventBuildable for ScreenViewEvent {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
+        let event = SelfDescribingEvent::builder()
+            .schema("iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0")
+            .data(json!(self))
+            .build()
+            .unwrap();
+        event.build_payload(payload_builder)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,5 +191,60 @@ mod tests {
 
         assert_eq!("test", event.category);
         assert_eq!("test_action", event.action);
+    }
+
+    #[test]
+    fn builds_payload_for_self_describing_event() {
+        let event = SelfDescribingEvent {
+            schema: "schema.com".to_string(),
+            data: json!({"targetUrl": "http://a-target-url.com"})
+        };
+        let payload_builder = payload_builder();
+        let payload = event.build_payload(payload_builder);
+        let ue_pr = payload.ue_pr.unwrap();
+        assert_eq!(ue_pr.schema, "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0");
+        assert_eq!(ue_pr.data.schema, "schema.com");
+    }
+
+    #[test]
+    fn builds_payload_for_structured_event() {
+        let event = StructuredEvent::builder()
+            .category("shop")
+            .action("add-to-basket")
+            .label("Add To Basket".to_string())
+            .property("pcs".to_string())
+            .value(2.0)
+            .build()
+            .unwrap();
+        let payload_builder = payload_builder();
+        let payload = event.build_payload(payload_builder);
+        assert_eq!(payload.se_ca.unwrap(), "shop");
+        assert_eq!(payload.se_ac.unwrap(), "add-to-basket");
+        assert_eq!(payload.se_la.unwrap(), "Add To Basket");
+        assert_eq!(payload.se_pr.unwrap(), "pcs");
+        assert_eq!(payload.se_va.unwrap(), "2");
+    }
+
+    #[test]
+    fn builds_payload_for_screen_view() {
+        let event = ScreenViewEvent::builder()
+            .id(Uuid::new_v4())
+            .name("a screen view")
+            .build()
+            .unwrap();
+        let payload_builder = payload_builder();
+        let payload = event.build_payload(payload_builder);
+        let ue_pr = payload.ue_pr.unwrap();
+        assert_eq!(ue_pr.data.schema, "iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0");
+    }
+
+    fn payload_builder() -> PayloadBuilder {
+        Payload::builder()
+            .p("platform".to_string())
+            .tv("0.1.9".to_string())
+            .eid(Uuid::new_v4())
+            .dtm("1".to_string())
+            .stm("1".to_string())
+            .aid("test".to_string())
     }
 }

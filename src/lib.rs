@@ -16,7 +16,7 @@
 //! ## Example usage
 //!
 //! ```
-//! use snowplow_tracker::{Snowplow, Event, SelfDescribingJson, SelfDescribingEvent};
+//! use snowplow_tracker::{Snowplow, SelfDescribingJson, SelfDescribingEvent};
 //! use serde_json::json;
 //!
 //! // Initialize a tracker instance given a namespace, application ID, and Snowplow collector URL
@@ -24,12 +24,10 @@
 //!
 //! // Tracking a self-describing event with a context entity
 //! tracker.track(
-//!     Event::SelfDescribing(
-//!         SelfDescribingEvent {
-//!             schema: "iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1".to_string(),
-//!             data: json!({"targetUrl": "http://a-target-url.com"})
-//!         }
-//!     ), 
+//!     SelfDescribingEvent {
+//!         schema: "iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1".to_string(),
+//!         data: json!({"targetUrl": "http://a-target-url.com"})
+//!     },
 //!     Some(vec![
 //!         SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
 //!     ])
@@ -45,7 +43,6 @@ mod payload;
 pub use snowplow::Snowplow;
 pub use tracker::Tracker;
 pub use emitter::Emitter;
-pub use event::Event;
 pub use event::ScreenViewEvent;
 pub use event::StructuredEvent;
 pub use event::SelfDescribingEvent;
