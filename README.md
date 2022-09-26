@@ -48,7 +48,7 @@ let tracker = Snowplow::create_tracker("ns", "app_id", "https://...");
 To track events, simply instantiate their respective types and pass them to the `tracker.track` method with optional context entities.
 Please refer to the documentation for specification of event properties.
 
-```dart
+```rust
 // Tracking a screen view event
 tracker.track(
     ScreenViewEvent::builder()
