@@ -113,10 +113,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-[website]: https://snowplowanalytics.com
+[website]: https://snowplow.io
 [snowplow]: https://github.com/snowplow/snowplow
-[docs]: https://docs.snowplowanalytics.com/
-[rust-docs]: https://docs.snowplowanalytics.com/docs/collecting-data/collecting-from-own-applications/rust-tracker/
+[docs]: https://docs.snowplow.io/
+[rust-docs]: https://docs.snowplow.io/docs/collecting-data/collecting-from-own-applications/rust-tracker/
 
 [gh-actions]: https://github.com/snowplow-incubator/snowplow-rust-tracker/actions/workflows/build.yml
 [gh-actions-image]: https://github.com/snowplow-incubator/snowplow-rust-tracker/actions/workflows/build.yml/badge.svg
@@ -126,9 +126,9 @@ limitations under the License.
 
 [releases]: https://crates.io/crates/snowplow_tracker
 
-[techdocs]: https://docs.snowplowanalytics.com/docs/collecting-data/collecting-from-own-applications/rust-tracker/
+[techdocs]: https://docs.snowplow.io/docs/collecting-data/collecting-from-own-applications/rust-tracker/
 [techdocs-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/techdocs.png
-[setup]: https://docs.snowplowanalytics.com/docs/collecting-data/collecting-from-own-applications/rust-tracker/quick-start-guide
+[setup]: https://docs.snowplow.io/docs/collecting-data/collecting-from-own-applications/rust-tracker/quick-start-guide
 [setup-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/setup.png
 
 [api-docs]: https://snowplow.github.io/snowplow-rust-tracker/
