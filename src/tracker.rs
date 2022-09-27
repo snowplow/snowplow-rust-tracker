@@ -1,14 +1,20 @@
+// Copyright (c) 2022 Snowplow Analytics Ltd. All rights reserved.
+//
+// This program is licensed to you under the Apache License Version 2.0,
+// and you may not use this file except in compliance with the Apache License Version 2.0.
+// You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the Apache License Version 2.0 is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use crate::emitter::Emitter;
-use crate::payload::{Payload, PayloadBuilder};
-use crate::payload::EventType;
+use crate::payload::{Payload, ContextData, SelfDescribingJson};
+use crate::event::EventBuildable;
 use uuid::Uuid;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use crate::event::SelfDescribingJson;
-use crate::event::StructuredEvent;
-use crate::event::ScreenViewEvent;
-use serde_json::json;
 
 pub struct TrackerConfig {
     pub platform: String,
@@ -16,17 +22,16 @@ pub struct TrackerConfig {
     pub encode_base_64: bool,
 }
 
+/// Snowplow tracker instance used to track events to the Snowplow Collector
 pub struct Tracker {
+    /// Tracker namespace that identifies the tracker within the app
     pub namespace: String,
+    /// Application ID
     pub app_id: String,
+    /// Emitter used to send events to the Collector
     pub emitter: Emitter,
+    /// Additional tracker config
     pub config: TrackerConfig,
-}
-
-#[derive(Debug)]
-pub enum TrackingError {
-    EmitterError(reqwest::Error),
-    PayloadError(serde_json::Error),
 }
 
 impl Tracker {
@@ -43,63 +48,30 @@ impl Tracker {
         }
     }
 
-    pub async fn track(&self, pb: PayloadBuilder) -> Result<String, reqwest::Error> {
-        let start = SystemTime::now();
-        let since_the_epoch = start
+    /// Tracks a Snowplow event with optional context entities and sends it to the Snowplow collector.
+    pub async fn track(&self, event: impl EventBuildable, context: Option<Vec<SelfDescribingJson>>) -> Option<Uuid> {
+        let since_the_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
+        let event_id = Uuid::new_v4();
 
-        let payload = pb
+        let mut payload_builder = Payload::builder()
             .p(self.config.platform.clone())
             .tv(self.config.version.clone())
-            .eid(Uuid::new_v4())
+            .eid(event_id.clone())
             .dtm(since_the_epoch.as_millis().to_string())
             .stm(since_the_epoch.as_millis().to_string())
-            .build()
-            .unwrap();
-
-        self.emitter.add(&payload);
-
-        self.emitter.post(payload, &self.emitter.collector_url).await
-    }
-
-    pub async fn track_self_describing_event(&self, schema: &str, data: &str) -> Result<String, TrackingError> {
-        let evnt = SelfDescribingJson::from_schema_and_data(schema, data).unwrap();
-
-        let payload_builder = Payload::builder()
-            .e(EventType::SelfDescribingEvent)
-            .ue_pr(evnt)
             .aid(self.app_id.clone());
 
-        match self.track(payload_builder).await {
-            Ok(res) => Ok(res),
-            Err(err) => Err(TrackingError::EmitterError(err)),
+        if let Some(context) = context {
+            payload_builder = payload_builder.co(ContextData::new(context.to_vec()));
         }
-    }
 
-    pub async fn track_struct_event(&self, struct_event: StructuredEvent ) -> Result<String, TrackingError> {
-        let payload_builder = Payload::builder()
-            .e(EventType::StructuredEvent)
-            .aid(self.app_id.clone())
-            .se_ca(struct_event.category)
-            .se_ac(struct_event.action)
-            .se_pr(struct_event.property)
-            .se_la(struct_event.label)
-            .se_va(struct_event.value);
-
-        match self.track(payload_builder).await {
-            Ok(res) => Ok(res),
-            Err(err) => Err(TrackingError::EmitterError(err)),
-        }
-    }
-
-    pub async fn track_screen_view(&self, screen_view: ScreenViewEvent) -> Result<String, TrackingError> {
-        match self.track_self_describing_event(
-            "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0",
-            &json!(screen_view).to_string(),
-        ).await {
-            Ok(res) => Ok(res),
-            Err(e) => Err(e),
+        let payload = event.build_payload(payload_builder);
+        if self.emitter.add(payload).await.is_ok() {
+            Some(event_id)
+        } else {
+            None
         }
     }
 }
