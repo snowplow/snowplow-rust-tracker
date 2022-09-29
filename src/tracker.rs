@@ -75,3 +75,24 @@ impl Tracker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+        #[test]
+        fn create_new_tracker() {
+            let tracker = Tracker::new(
+                "test namespace",
+                "test app id",
+                Emitter::new("http://example.com/")
+            );
+
+            assert_eq!(tracker.namespace, "test namespace");
+            assert_eq!(tracker.app_id, "test app id");
+            assert_eq!(tracker.emitter.collector_url, "http://example.com/");
+            assert_eq!(tracker.config.platform, "pc".to_string());
+            assert_eq!(tracker.config.version, "rust-0.1.0".to_string());
+            assert_eq!(tracker.config.encode_base_64, false);
+        }
+}
