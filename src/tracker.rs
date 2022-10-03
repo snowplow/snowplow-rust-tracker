@@ -10,11 +10,11 @@
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use crate::emitter::Emitter;
-use crate::payload::{Payload, ContextData, SelfDescribingJson};
 use crate::event::EventBuildable;
-use uuid::Uuid;
+use crate::payload::{ContextData, Payload, SelfDescribingJson};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use uuid::Uuid;
 
 pub struct TrackerConfig {
     pub platform: String,
@@ -44,12 +44,16 @@ impl Tracker {
                 platform: "pc".to_string(),
                 version: "rust-0.1.0".to_string(),
                 encode_base_64: false,
-            }
+            },
         }
     }
 
     /// Tracks a Snowplow event with optional context entities and sends it to the Snowplow collector.
-    pub async fn track(&self, event: impl EventBuildable, context: Option<Vec<SelfDescribingJson>>) -> Option<Uuid> {
+    pub async fn track(
+        &self,
+        event: impl EventBuildable,
+        context: Option<Vec<SelfDescribingJson>>,
+    ) -> Option<Uuid> {
         let since_the_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
@@ -80,19 +84,19 @@ impl Tracker {
 mod tests {
     use super::*;
 
-        #[test]
-        fn create_new_tracker() {
-            let tracker = Tracker::new(
-                "test namespace",
-                "test app id",
-                Emitter::new("http://example.com/")
-            );
+    #[test]
+    fn create_new_tracker() {
+        let tracker = Tracker::new(
+            "test namespace",
+            "test app id",
+            Emitter::new("http://example.com/"),
+        );
 
-            assert_eq!(tracker.namespace, "test namespace");
-            assert_eq!(tracker.app_id, "test app id");
-            assert_eq!(tracker.emitter.collector_url, "http://example.com/");
-            assert_eq!(tracker.config.platform, "pc".to_string());
-            assert_eq!(tracker.config.version, "rust-0.1.0".to_string());
-            assert_eq!(tracker.config.encode_base_64, false);
-        }
+        assert_eq!(tracker.namespace, "test namespace");
+        assert_eq!(tracker.app_id, "test app id");
+        assert_eq!(tracker.emitter.collector_url, "http://example.com/");
+        assert_eq!(tracker.config.platform, "pc".to_string());
+        assert_eq!(tracker.config.version, "rust-0.1.0".to_string());
+        assert_eq!(tracker.config.encode_base_64, false);
+    }
 }

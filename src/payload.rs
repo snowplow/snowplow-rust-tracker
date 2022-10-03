@@ -77,8 +77,10 @@ pub struct SelfDescribingEventData {
 impl SelfDescribingEventData {
     pub fn new(data: SelfDescribingJson) -> SelfDescribingEventData {
         SelfDescribingEventData {
-            schema:  String::from("iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"),
-            data: data
+            schema: String::from(
+                "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            ),
+            data: data,
         }
     }
 }
@@ -133,7 +135,7 @@ impl ContextData {
     pub fn new(data: Vec<SelfDescribingJson>) -> ContextData {
         ContextData {
             schema: String::from("iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1"),
-            data
+            data,
         }
     }
 }

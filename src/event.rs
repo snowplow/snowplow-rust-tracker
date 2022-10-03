@@ -11,10 +11,12 @@
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::payload::{EventType, SelfDescribingEventData, PayloadBuilder, Payload, SelfDescribingJson};
+use crate::payload::{
+    EventType, Payload, PayloadBuilder, SelfDescribingEventData, SelfDescribingJson,
+};
 
 /// Trait implemented by event types that enables the tracker to build their payload to be sent to the Collector.
 pub trait EventBuildable {
@@ -109,14 +111,18 @@ impl EventBuildable for StructuredEvent {
             .se_ac(self.action)
             .se_pr(self.property)
             .se_la(self.label)
-            .se_va(if let Some(value) = self.value { Some(value.to_string()) } else { None })
+            .se_va(if let Some(value) = self.value {
+                Some(value.to_string())
+            } else {
+                None
+            })
             .build()
             .unwrap()
     }
 }
 
 /// Event to track user viewing a screen within the application.
-/// 
+///
 /// It is a self-describing event with the schema "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0"
 #[derive(Serialize, Deserialize, Builder)]
 pub struct ScreenViewEvent {
