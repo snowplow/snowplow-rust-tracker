@@ -196,12 +196,15 @@ mod tests {
     fn builds_payload_for_self_describing_event() {
         let event = SelfDescribingEvent {
             schema: "schema.com".to_string(),
-            data: json!({"targetUrl": "http://a-target-url.com"})
+            data: json!({}),
         };
         let payload_builder = payload_builder();
         let payload = event.build_payload(payload_builder);
         let ue_pr = payload.ue_pr.unwrap();
-        assert_eq!(ue_pr.schema, "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0");
+        assert_eq!(
+            ue_pr.schema,
+            "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"
+        );
         assert_eq!(ue_pr.data.schema, "schema.com");
     }
 
@@ -217,6 +220,7 @@ mod tests {
             .unwrap();
         let payload_builder = payload_builder();
         let payload = event.build_payload(payload_builder);
+
         assert_eq!(payload.se_ca.unwrap(), "shop");
         assert_eq!(payload.se_ac.unwrap(), "add-to-basket");
         assert_eq!(payload.se_la.unwrap(), "Add To Basket");
@@ -234,13 +238,16 @@ mod tests {
         let payload_builder = payload_builder();
         let payload = event.build_payload(payload_builder);
         let ue_pr = payload.ue_pr.unwrap();
-        assert_eq!(ue_pr.data.schema, "iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0");
+        assert_eq!(
+            ue_pr.data.schema,
+            "iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0"
+        );
     }
 
     fn payload_builder() -> PayloadBuilder {
         Payload::builder()
             .p("platform".to_string())
-            .tv("0.1.9".to_string())
+            .tv("0.1.0".to_string())
             .eid(Uuid::new_v4())
             .dtm("1".to_string())
             .stm("1".to_string())
