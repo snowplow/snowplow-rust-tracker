@@ -34,16 +34,16 @@
 //! );
 //! ```
 
-mod tracker;
 mod emitter;
 mod event;
-mod snowplow;
 mod payload;
+mod snowplow;
+mod tracker;
 
-pub use snowplow::Snowplow;
-pub use tracker::Tracker;
 pub use emitter::Emitter;
 pub use event::ScreenViewEvent;
-pub use event::StructuredEvent;
 pub use event::SelfDescribingEvent;
+pub use event::StructuredEvent;
 pub use payload::SelfDescribingJson;
+pub use snowplow::Snowplow;
+pub use tracker::Tracker;

@@ -10,22 +10,29 @@
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use serde_json::json;
-use snowplow_tracker::{Snowplow, ScreenViewEvent, StructuredEvent, SelfDescribingJson, SelfDescribingEvent};
+use snowplow_tracker::{
+    ScreenViewEvent, SelfDescribingEvent, SelfDescribingJson, Snowplow, StructuredEvent,
+};
 use uuid::Uuid;
 
 #[tokio::main]
 async fn main() {
     let tracker = Snowplow::create_tracker("ns", "app_id", "http://localhost:9090");
 
-    let self_desc_event_id = tracker.track(
-        SelfDescribingEvent {
-            schema: "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0".to_string(),
-            data: json!({"name": "test", "id": "something else"})
-        },
-        Some(vec![
-            SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
-        ])
-    ).await.unwrap();
+    let self_desc_event_id = tracker
+        .track(
+            SelfDescribingEvent {
+                schema: "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0"
+                    .to_string(),
+                data: json!({"name": "test", "id": "something else"}),
+            },
+            Some(vec![SelfDescribingJson::new(
+                "iglu:org.schema/WebPage/jsonschema/1-0-0",
+                json!({"keywords": ["tester"]}),
+            )]),
+        )
+        .await
+        .unwrap();
 
     let struct_event_id = tracker
         .track(
@@ -37,8 +44,9 @@ async fn main() {
                 .value(2.0)
                 .build()
                 .unwrap(),
-            None
-        ).await
+            None,
+        )
+        .await
         .unwrap();
 
     let screen_view_event_id = tracker
@@ -49,8 +57,9 @@ async fn main() {
                 .previous_name("previous screen".to_string())
                 .build()
                 .unwrap(),
-            None
-        ).await
+            None,
+        )
+        .await
         .unwrap();
 
     println!("--- DEBUGGING ---");

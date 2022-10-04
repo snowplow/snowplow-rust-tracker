@@ -16,16 +16,10 @@ pub struct Snowplow;
 
 /// Main interface for the package used to initialize trackers.
 impl Snowplow {
-
     /// Creates a new Tracker instance that can be used to track events
-    pub fn create_tracker(
-        namespace: &str,
-        app_id: &str,
-        collector_url: &str,
-    ) -> Tracker {
+    pub fn create_tracker(namespace: &str, app_id: &str, collector_url: &str) -> Tracker {
         let emitter = Emitter::new(collector_url);
         let tracker = Tracker::new(namespace, app_id, emitter);
         tracker
     }
-
 }
