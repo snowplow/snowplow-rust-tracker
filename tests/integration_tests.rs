@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use snowplow_tracker::{
     ScreenViewEvent, SelfDescribingEvent, SelfDescribingJson, Snowplow, StructuredEvent,
+    TimingEvent,
 };
 
 fn get_micro() -> GenericImage {
@@ -41,7 +42,7 @@ async fn track_valid_event_to_good() {
     let screenview_event = ScreenViewEvent::builder()
         .id(Uuid::new_v4())
         .name("a screen view")
-        .previous_name("previous screen".to_string())
+        .previous_name("previous screen")
         .build()
         .unwrap();
 
@@ -61,7 +62,11 @@ async fn track_screen_view_event() {
     let screenview_event = ScreenViewEvent::builder()
         .id(Uuid::new_v4())
         .name("a screen view")
-        .previous_name("previous screen".to_string())
+        .screen_type("feed")
+        .previous_name("previous screen")
+        .previous_type("carousel")
+        .previous_id(Uuid::new_v4())
+        .transition_type("navigation")
         .build()
         .unwrap();
 
@@ -90,8 +95,8 @@ async fn track_structured_event() {
     let structured_event = StructuredEvent::builder()
         .category("shop")
         .action("add-to-basket")
-        .label("Add To Basket".to_string())
-        .property("pcs".to_string())
+        .label("Add To Basket")
+        .property("pcs")
         .value(2.0)
         .build()
         .unwrap();
@@ -163,5 +168,35 @@ async fn track_self_describing_event() {
             .first()
             .unwrap(),
         &expected_context
+    );
+}
+
+#[tokio::test]
+async fn track_timing_event() {
+    let docker = Cli::default();
+    let (_container, micro_url) = setup(&docker);
+
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url);
+
+    let timing_event = TimingEvent::builder()
+        .category("fetch_resource")
+        .variable("map_loaded")
+        .timing(1423)
+        .label("Time to fetch map resource")
+        .build()
+        .unwrap();
+
+    let expected_event = json!({
+        "schema": "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
+        "data" : serde_json::to_value(&timing_event).unwrap(),
+    });
+
+    tracker.track(timing_event, None).await.unwrap();
+
+    let good_events = get_micro_endpoint(&micro_url, "good").await;
+
+    assert_eq!(
+        expected_event,
+        good_events.as_array().unwrap().last().unwrap()["event"]["unstruct_event"]["data"]
     );
 }

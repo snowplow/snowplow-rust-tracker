@@ -39,8 +39,8 @@ async fn main() {
             StructuredEvent::builder()
                 .category("shop")
                 .action("add-to-basket")
-                .label("Add To Basket".to_string())
-                .property("pcs".to_string())
+                .label("Add To Basket")
+                .property("pcs")
                 .value(2.0)
                 .build()
                 .unwrap(),
@@ -54,7 +54,7 @@ async fn main() {
             ScreenViewEvent::builder()
                 .id(Uuid::new_v4())
                 .name("a screen view")
-                .previous_name("previous screen".to_string())
+                .previous_name("previous name")
                 .build()
                 .unwrap(),
             None,
