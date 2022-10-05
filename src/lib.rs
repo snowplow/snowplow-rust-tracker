@@ -44,6 +44,7 @@ pub use emitter::Emitter;
 pub use event::ScreenViewEvent;
 pub use event::SelfDescribingEvent;
 pub use event::StructuredEvent;
+pub use event::TimingEvent;
 pub use payload::SelfDescribingJson;
 pub use snowplow::Snowplow;
 pub use tracker::Tracker;

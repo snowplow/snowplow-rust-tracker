@@ -28,17 +28,16 @@ pub trait EventBuildable {
 /// Self-describing events are a [data structure based on JSON Schemas](https://docs.snowplow.io/docs/understanding-tracking-design/understanding-schemas-and-validation/) and can have arbitrarily many fields.
 /// Snowplow uses the schema to validate that the JSON containing the event properties is well-formed.
 #[derive(Serialize, Deserialize, Builder)]
+#[builder(setter(into))]
 pub struct SelfDescribingEvent {
     /// A valid Iglu schema path.
     ///
     /// This must point to the location of the custom event’s schema, of the format: `iglu:{vendor}/{name}/{format}/{version}`.
-    #[builder(setter(into))]
     pub schema: String,
 
     /// The custom data for the event.
     ///
     /// This data must conform to the schema specified in the schema argument, or the event will fail validation and land in bad rows.
-    #[builder(setter(into))]
     pub data: Value,
 }
 
@@ -63,35 +62,34 @@ impl EventBuildable for SelfDescribingEvent {
 
 /// Event to capture custom consumer interactions without the need to define a custom schema.
 #[derive(Serialize, Deserialize, Builder)]
+#[builder(setter(into, strip_option))]
 pub struct StructuredEvent {
     /// Name you for the group of objects you want to track e.g. "media", "ecomm".
-    #[builder(setter(into))]
     pub category: String,
 
     /// Defines the type of user interaction for the web object.
     ///
     /// E.g., "play-video", "add-to-basket".
-    #[builder(setter(into))]
     pub action: String,
 
     /// Describes the object or the action performed on it.
     ///
     /// This might be the quantity of an item added to basket
-    #[builder(setter(into), default)]
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub property: Option<String>,
 
     /// Identifies the specific object being actioned.
     ///
     /// E.g., ID of the video being played, or the SKU or the product added-to-basket.
-    #[builder(setter(into), default)]
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
 
     /// Identifies the specific object being actioned.
     ///
     /// E.g., ID of the video being played, or the SKU or the product added-to-basket.
-    #[builder(setter(into), default)]
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     // serde isn't happy with u128 and I'm not sure why
     pub value: Option<f64>,
@@ -125,43 +123,39 @@ impl EventBuildable for StructuredEvent {
 ///
 /// It is a self-describing event with the schema "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0"
 #[derive(Serialize, Deserialize, Builder)]
+#[serde(rename_all = "camelCase")]
+#[builder(setter(into, strip_option))]
 pub struct ScreenViewEvent {
     /// The name of the screen viewed.
-    #[builder(setter(into))]
     pub name: String,
 
     /// The id (UUID v4) of screen that was viewed.
-    #[builder(setter(into))]
     pub id: Uuid,
 
     /// The type of screen that was viewed.
-    #[builder(setter(into), default)]
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename(serialize = "type"))]
     pub screen_type: Option<String>,
 
     /// The name of the previous screen that was viewed.
-    #[builder(setter(into), default)]
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename(serialize = "previousName"))]
     pub previous_name: Option<String>,
 
     /// The type of screen that was viewed.
-    #[builder(setter(into), default)]
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename(serialize = "previousType"))]
     pub previous_type: Option<String>,
 
     /// The id (UUID v4) of the previous screen that was viewed.
-    #[builder(setter(into), default)]
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename(serialize = "previousId"))]
     pub previous_id: Option<Uuid>,
 
     /// The type of transition that led to the screen being viewed.
-    #[builder(setter(into), default)]
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename(serialize = "transitionType"))]
     pub transition_type: Option<String>,
 }
 
@@ -175,6 +169,43 @@ impl EventBuildable for ScreenViewEvent {
     fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
         let event = SelfDescribingEvent::builder()
             .schema("iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0")
+            .data(json!(self))
+            .build()
+            .unwrap();
+        event.build_payload(payload_builder)
+    }
+}
+
+/// Event to track user timing events, such as how long resources take to load.
+///
+/// It is a self-describing event with the schema "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0"
+#[derive(Serialize, Deserialize, Builder, Default)]
+#[builder(setter(into, strip_option), default)]
+pub struct TimingEvent {
+    /// The category of the timed event
+    pub category: String,
+
+    /// What is being measured e.g. "load resource"
+    pub variable: String,
+
+    /// The number of milliseconds in elapsed time
+    pub timing: i64,
+
+    /// An optional description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+impl TimingEvent {
+    pub fn builder() -> TimingEventBuilder {
+        TimingEventBuilder::default()
+    }
+}
+
+impl EventBuildable for TimingEvent {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
+        let event = SelfDescribingEvent::builder()
+            .schema("iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0")
             .data(json!(self))
             .build()
             .unwrap();
@@ -248,6 +279,31 @@ mod tests {
             ue_pr.data.schema,
             "iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0"
         );
+    }
+
+    #[test]
+    fn builds_payload_for_timing_event() {
+        let event = TimingEvent::builder()
+            .category("fetch_resource")
+            .variable("map_loaded")
+            .timing(1423)
+            .label("Time to fetch map resource")
+            .build()
+            .unwrap();
+        let payload_builder = payload_builder();
+        let payload = event.build_payload(payload_builder);
+        let expected = SelfDescribingJson {
+            schema: "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
+            data: json!({
+                "category": "fetch_resource",
+                "variable": "map_loaded",
+                "timing": 1423_i64,
+                "label": "Time to fetch map resource"
+            }),
+        };
+        let data = payload.ue_pr.unwrap().data;
+        assert_eq!(data.schema, expected.schema);
+        assert_eq!(data.data, expected.data);
     }
 
     fn payload_builder() -> PayloadBuilder {
