@@ -5,11 +5,11 @@ use testcontainers::{clients::Cli, Container};
 use uuid::Uuid;
 
 use snowplow_tracker::{
-    ScreenViewEvent, SelfDescribingEvent, SelfDescribingJson, Snowplow, StructuredEvent,
+    ScreenViewEvent, SelfDescribingEvent, SelfDescribingJson, Snowplow, StructuredEvent, Subject,
     TimingEvent,
 };
 
-fn get_micro() -> GenericImage {
+fn micro() -> GenericImage {
     let running_message = WaitFor::message_on_stderr("REST interface bound to /0.0.0.0:9090");
 
     GenericImage::new("snowplow/snowplow-micro", "latest")
@@ -17,7 +17,7 @@ fn get_micro() -> GenericImage {
         .with_wait_for(running_message.clone())
 }
 
-async fn get_micro_endpoint(micro_url: &str, page: &str) -> serde_json::Value {
+async fn micro_endpoint(micro_url: &str, page: &str) -> serde_json::Value {
     let resp = reqwest::get(micro_url.to_string() + "/micro/" + page)
         .await
         .unwrap();
@@ -26,7 +26,7 @@ async fn get_micro_endpoint(micro_url: &str, page: &str) -> serde_json::Value {
 }
 
 fn setup(docker: &'_ Cli) -> (Container<'_, GenericImage>, String) {
-    let container = docker.run(get_micro());
+    let container = docker.run(micro());
     let host_port = container.get_host_port_ipv4(9090);
     let micro_url = format!("http://0.0.0.0:{host_port}");
     (container, micro_url)
@@ -37,7 +37,7 @@ async fn track_valid_event_to_good() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url);
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
 
     let screenview_event = ScreenViewEvent::builder()
         .id(Uuid::new_v4())
@@ -46,10 +46,119 @@ async fn track_valid_event_to_good() {
         .build()
         .unwrap();
 
-    tracker.track(screenview_event, None).await;
+    tracker.track(screenview_event, None).await.unwrap();
 
-    let all_events = get_micro_endpoint(&micro_url, "all").await;
+    let all_events = micro_endpoint(&micro_url, "all").await;
     assert_eq!(1, all_events["good"]);
+}
+
+#[tokio::test]
+async fn track_event_with_subject() {
+    let docker = Cli::default();
+    let (_container, micro_url) = setup(&docker);
+
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+    let domain_user_id = Uuid::new_v4();
+    let network_user_id = Uuid::new_v4();
+    let session_user_id = Uuid::new_v4();
+    let subject = Subject::builder()
+        .user_id("user_1")
+        .timezone("Europe/London")
+        .language("en-gb")
+        .ip_address("0.0.0.0")
+        .user_agent("Mozilla/Firefox")
+        .domain_user_id(domain_user_id)
+        .network_user_id(network_user_id)
+        .session_user_id(session_user_id)
+        .build()
+        .unwrap();
+
+    let screenview_event = ScreenViewEvent::builder()
+        .id(Uuid::new_v4())
+        .name("a screen view")
+        .previous_name("previous screen")
+        .subject(subject)
+        .build()
+        .unwrap();
+
+    tracker.track(screenview_event, None).await.unwrap();
+
+    let good_events = micro_endpoint(&micro_url, "good").await;
+    let event = &good_events.as_array().unwrap().last().unwrap()["event"];
+
+    assert_eq!("user_1", event["user_id"]);
+    assert_eq!("Europe/London", event["os_timezone"]);
+    assert_eq!("en-gb", event["br_lang"]);
+    assert_eq!("0.0.0.0", event["user_ipaddress"]);
+    assert_eq!("Mozilla/Firefox", event["useragent"]);
+    assert_eq!(domain_user_id.to_string(), event["domain_userid"]);
+    assert_eq!(network_user_id.to_string(), event["network_userid"]);
+    assert_eq!(session_user_id.to_string(), event["domain_sessionid"]);
+}
+
+#[tokio::test]
+async fn track_event_with_partial_subject() {
+    let docker = Cli::default();
+    let (_container, micro_url) = setup(&docker);
+
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+
+    let subject = Subject::builder()
+        .user_id("user_1")
+        .timezone("Europe/London")
+        .language("en-gb")
+        .build()
+        .unwrap();
+
+    let screenview_event = ScreenViewEvent::builder()
+        .id(Uuid::new_v4())
+        .name("a screen view")
+        .previous_name("previous screen")
+        .subject(subject)
+        .build()
+        .unwrap();
+
+    tracker.track(screenview_event, None).await.unwrap();
+
+    let good_events = micro_endpoint(&micro_url, "good").await;
+    let event = &good_events.as_array().unwrap().last().unwrap()["event"];
+
+    // Fields sent in Subject
+    assert_eq!("user_1".to_string(), event["user_id"]);
+    assert_eq!("Europe/London".to_string(), event["os_timezone"]);
+    assert_eq!("en-gb".to_string(), event["br_lang"]);
+
+    // Fields not sent in Subject, not set by Enrich
+    assert_eq!(serde_json::Value::Null, event["useragent"]);
+    assert_eq!(serde_json::Value::Null, event["domain_userid"]);
+
+    // Fields not sent in subject, set by Enrich
+    assert_ne!(serde_json::Value::Null, event["user_ipaddress"]);
+    assert_ne!(serde_json::Value::Null, event["network_userid"]);
+}
+
+#[tokio::test]
+async fn event_subject_overrides_tracker_subject() {
+    let docker = Cli::default();
+    let (_container, micro_url) = setup(&docker);
+
+    let tracker_subject = Subject::builder().user_id("user_1").build().unwrap();
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, Some(tracker_subject));
+    let subject = Subject::builder().user_id("user_2").build().unwrap();
+
+    let screenview_event = ScreenViewEvent::builder()
+        .id(Uuid::new_v4())
+        .name("a screen view")
+        .subject(subject)
+        .build()
+        .unwrap();
+
+    tracker.track(screenview_event, None).await.unwrap();
+
+    let good_events = micro_endpoint(&micro_url, "good").await;
+    let event = &good_events.as_array().unwrap().last().unwrap()["event"];
+
+    assert_eq!("user_2", event["user_id"]);
 }
 
 #[tokio::test]
@@ -57,7 +166,7 @@ async fn track_screen_view_event() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url);
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
 
     let screenview_event = ScreenViewEvent::builder()
         .id(Uuid::new_v4())
@@ -77,7 +186,7 @@ async fn track_screen_view_event() {
 
     tracker.track(screenview_event, None).await.unwrap();
 
-    let good_events = get_micro_endpoint(&micro_url, "good").await;
+    let good_events = micro_endpoint(&micro_url, "good").await;
 
     assert_eq!(
         expected_event,
@@ -90,7 +199,7 @@ async fn track_structured_event() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url);
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
 
     let structured_event = StructuredEvent::builder()
         .category("shop")
@@ -101,19 +210,16 @@ async fn track_structured_event() {
         .build()
         .unwrap();
 
-    let expected_event = serde_json::to_value(&structured_event).unwrap();
-
     tracker.track(structured_event, None).await.unwrap();
 
-    let good_events = get_micro_endpoint(&micro_url, "good").await;
+    let good_events = micro_endpoint(&micro_url, "good").await;
+    let event = &good_events.as_array().unwrap().last().unwrap()["event"];
 
-    let properties = vec!["category", "action", "label", "property", "value"];
-    for prop in properties {
-        assert_eq!(
-            expected_event[prop],
-            good_events.as_array().unwrap().last().unwrap()["event"][format!("se_{prop}")]
-        );
-    }
+    assert_eq!(event["se_category"], "shop");
+    assert_eq!(event["se_action"], "add-to-basket");
+    assert_eq!(event["se_label"], "Add To Basket");
+    assert_eq!(event["se_property"], "pcs");
+    assert_eq!(event["se_value"], 2.0);
 }
 
 #[tokio::test]
@@ -121,14 +227,14 @@ async fn track_self_describing_event() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url);
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
     tracker
         .track(
-            SelfDescribingEvent {
-                schema: "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0"
-                    .to_string(),
-                data: json!({"name": "test", "id": "something else"}),
-            },
+            SelfDescribingEvent::builder()
+                .schema("iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0")
+                .data(json!({"name": "test", "id": "something else"}))
+                .build()
+                .unwrap(),
             Some(vec![SelfDescribingJson::new(
                 "iglu:org.schema/WebPage/jsonschema/1-0-0",
                 json!({"keywords": ["tester"]}),
@@ -136,7 +242,7 @@ async fn track_self_describing_event() {
         )
         .await;
 
-    let good_events = get_micro_endpoint(&micro_url, "good").await;
+    let good_events = micro_endpoint(&micro_url, "good").await;
     let received_event = good_events.as_array().unwrap().last().unwrap();
 
     let expected_unstruct_event = json!({
@@ -176,7 +282,7 @@ async fn track_timing_event() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url);
+    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
 
     let timing_event = TimingEvent::builder()
         .category("fetch_resource")
@@ -193,7 +299,7 @@ async fn track_timing_event() {
 
     tracker.track(timing_event, None).await.unwrap();
 
-    let good_events = get_micro_endpoint(&micro_url, "good").await;
+    let good_events = micro_endpoint(&micro_url, "good").await;
 
     assert_eq!(
         expected_event,

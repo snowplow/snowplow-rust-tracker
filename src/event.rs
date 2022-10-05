@@ -10,17 +10,19 @@
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::payload::{
     EventType, Payload, PayloadBuilder, SelfDescribingEventData, SelfDescribingJson,
 };
+use crate::subject::Subject;
 
 /// Trait implemented by event types that enables the tracker to build their payload to be sent to the Collector.
 pub trait EventBuildable {
     fn build_payload(self, payload_builder: PayloadBuilder) -> Payload;
+    fn subject(&self) -> &Option<Subject>;
 }
 
 /// Event to track custom information that does not fit into the out-of-the box events.
@@ -39,6 +41,10 @@ pub struct SelfDescribingEvent {
     ///
     /// This data must conform to the schema specified in the schema argument, or the event will fail validation and land in bad rows.
     pub data: Value,
+
+    #[builder(default)]
+    #[serde(skip_serializing)]
+    pub subject: Option<Subject>,
 }
 
 impl SelfDescribingEvent {
@@ -58,18 +64,24 @@ impl EventBuildable for SelfDescribingEvent {
             .build()
             .unwrap()
     }
+
+    fn subject(&self) -> &Option<Subject> {
+        &self.subject
+    }
 }
 
 /// Event to capture custom consumer interactions without the need to define a custom schema.
-#[derive(Serialize, Deserialize, Builder)]
+#[derive(Serialize, Deserialize, Builder, Debug, Clone)]
 #[builder(setter(into, strip_option))]
 pub struct StructuredEvent {
     /// Name you for the group of objects you want to track e.g. "media", "ecomm".
+    #[serde(rename(serialize = "se_ca"))]
     pub category: String,
 
     /// Defines the type of user interaction for the web object.
     ///
     /// E.g., "play-video", "add-to-basket".
+    #[serde(rename(serialize = "se_ac"))]
     pub action: String,
 
     /// Describes the object or the action performed on it.
@@ -77,6 +89,7 @@ pub struct StructuredEvent {
     /// This might be the quantity of an item added to basket
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename(serialize = "se_pr"))]
     pub property: Option<String>,
 
     /// Identifies the specific object being actioned.
@@ -84,6 +97,7 @@ pub struct StructuredEvent {
     /// E.g., ID of the video being played, or the SKU or the product added-to-basket.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename(serialize = "se_la"))]
     pub label: Option<String>,
 
     /// Identifies the specific object being actioned.
@@ -91,8 +105,26 @@ pub struct StructuredEvent {
     /// E.g., ID of the video being played, or the SKU or the product added-to-basket.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    // serde isn't happy with u128 and I'm not sure why
+    #[serde(rename(serialize = "se_va"))]
+    #[serde(serialize_with = "optional_f64_to_string")]
     pub value: Option<f64>,
+
+    #[builder(default)]
+    #[serde(skip_serializing)]
+    pub subject: Option<Subject>,
+}
+
+// Serializer to convert the optional f64 to the JSON `String` type
+// expected by the collector, rather than the default JSON `Number`
+fn optional_f64_to_string<S>(num: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    if let Some(num) = num {
+        serializer.serialize_str(&num.to_string())
+    } else {
+        serializer.serialize_none()
+    }
 }
 
 impl StructuredEvent {
@@ -105,17 +137,13 @@ impl EventBuildable for StructuredEvent {
     fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
         payload_builder
             .e(EventType::StructuredEvent)
-            .se_ca(self.category)
-            .se_ac(self.action)
-            .se_pr(self.property)
-            .se_la(self.label)
-            .se_va(if let Some(value) = self.value {
-                Some(value.to_string())
-            } else {
-                None
-            })
+            .structured_event(self)
             .build()
             .unwrap()
+    }
+
+    fn subject(&self) -> &Option<Subject> {
+        &self.subject
     }
 }
 
@@ -157,6 +185,10 @@ pub struct ScreenViewEvent {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transition_type: Option<String>,
+
+    #[builder(default)]
+    #[serde(skip_serializing)]
+    pub subject: Option<Subject>,
 }
 
 impl ScreenViewEvent {
@@ -173,6 +205,10 @@ impl EventBuildable for ScreenViewEvent {
             .build()
             .unwrap();
         event.build_payload(payload_builder)
+    }
+
+    fn subject(&self) -> &Option<Subject> {
+        &self.subject
     }
 }
 
@@ -194,6 +230,10 @@ pub struct TimingEvent {
     /// An optional description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+
+    #[builder(default)]
+    #[serde(skip_serializing)]
+    pub subject: Option<Subject>,
 }
 
 impl TimingEvent {
@@ -210,6 +250,10 @@ impl EventBuildable for TimingEvent {
             .build()
             .unwrap();
         event.build_payload(payload_builder)
+    }
+
+    fn subject(&self) -> &Option<Subject> {
+        &self.subject
     }
 }
 
@@ -231,13 +275,23 @@ mod tests {
 
     #[test]
     fn builds_payload_for_self_describing_event() {
-        let event = SelfDescribingEvent {
-            schema: "schema.com".to_string(),
-            data: json!({}),
-        };
+        let event = SelfDescribingEvent::builder()
+            .schema("schema.com")
+            .data(json!({}))
+            .subject(Subject {
+                user_id: Some("user_1".to_string()),
+                ..Subject::default()
+            })
+            .build()
+            .unwrap();
+
         let payload_builder = payload_builder();
+
+        assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
+
         let payload = event.build_payload(payload_builder);
         let ue_pr = payload.ue_pr.unwrap();
+
         assert_eq!(
             ue_pr.schema,
             "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"
@@ -253,16 +307,24 @@ mod tests {
             .label("Add To Basket".to_string())
             .property("pcs".to_string())
             .value(2.0)
+            .subject(Subject {
+                user_id: Some("user_1".to_string()),
+                ..Subject::default()
+            })
             .build()
             .unwrap();
         let payload_builder = payload_builder();
-        let payload = event.build_payload(payload_builder);
 
-        assert_eq!(payload.se_ca.unwrap(), "shop");
-        assert_eq!(payload.se_ac.unwrap(), "add-to-basket");
-        assert_eq!(payload.se_la.unwrap(), "Add To Basket");
-        assert_eq!(payload.se_pr.unwrap(), "pcs");
-        assert_eq!(payload.se_va.unwrap(), "2");
+        assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
+
+        let payload = event.build_payload(payload_builder);
+        let event = payload.structured_event.unwrap();
+
+        assert_eq!(event.category, "shop");
+        assert_eq!(event.action, "add-to-basket");
+        assert_eq!(event.label.unwrap(), "Add To Basket");
+        assert_eq!(event.property.unwrap(), "pcs");
+        assert_eq!(event.value.unwrap(), 2_f64);
     }
 
     #[test]
@@ -270,9 +332,16 @@ mod tests {
         let event = ScreenViewEvent::builder()
             .id(Uuid::new_v4())
             .name("a screen view")
+            .subject(Subject {
+                user_id: Some("user_1".to_string()),
+                ..Subject::default()
+            })
             .build()
             .unwrap();
         let payload_builder = payload_builder();
+
+        assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
+
         let payload = event.build_payload(payload_builder);
         let ue_pr = payload.ue_pr.unwrap();
         assert_eq!(
@@ -288,9 +357,16 @@ mod tests {
             .variable("map_loaded")
             .timing(1423)
             .label("Time to fetch map resource")
+            .subject(Subject {
+                user_id: Some("user_1".to_string()),
+                ..Subject::default()
+            })
             .build()
             .unwrap();
         let payload_builder = payload_builder();
+
+        assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
+
         let payload = event.build_payload(payload_builder);
         let expected = SelfDescribingJson {
             schema: "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
