@@ -10,12 +10,13 @@
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use crate::emitter::Emitter;
+use crate::error::Error;
 use crate::event::EventBuildable;
 use crate::payload::{ContextData, Payload, SelfDescribingJson};
 use crate::subject::Subject;
 
-use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use std::time::{SystemTime, SystemTimeError};
 use uuid::Uuid;
 
 pub struct TrackerConfig {
@@ -88,10 +89,14 @@ impl Tracker {
         &self,
         event: impl EventBuildable,
         context: Option<Vec<SelfDescribingJson>>,
-    ) -> Option<Uuid> {
-        let since_the_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
+    ) -> Result<Uuid, Error> {
+        let since_the_epoch =
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|e: SystemTimeError| {
+                    Error::BuilderError(format!("Failed to get current time: {}", e.to_string()))
+                })?;
+
         let event_id = Uuid::new_v4();
 
         let mut payload_builder = Payload::builder()
@@ -112,12 +117,8 @@ impl Tracker {
                 payload_builder.subject(event_subject.clone().merge(self.subject.clone()));
         }
 
-        let payload = event.build_payload(payload_builder);
-        if self.emitter.add(payload).await.is_ok() {
-            Some(event_id)
-        } else {
-            None
-        }
+        let payload = event.build_payload(payload_builder)?;
+        self.emitter.add(payload).await.map(|_| event_id)
     }
 }
 

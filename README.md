@@ -53,40 +53,60 @@ To track events, simply instantiate their respective types and pass them to the 
 Please refer to the documentation for specification of event properties.
 
 ```rust
-// Tracking a screen view event
-tracker.track(
-    ScreenViewEvent::builder()
-        .id(Uuid::new_v4())
-        .name("a screen view")
-        .build()
-        .unwrap(),
-    None
-).await;
+// Tracking a Screen View event
+let screen_view_event = match ScreenViewEvent::builder()
+    .id(Uuid::new_v4())
+    .name("a screen view")
+    .previous_name("previous name")
+    .build()
+{
+    Ok(event) => event,
+    Err(e) => panic!("{e}"), // your error handling here
+};
 
-// Tracking a self-describing event with a context entity
-tracker.track(
-    SelfDescribingEvent.builder()
-        .schema("iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1"),
-        .data(json!({"targetUrl": "http://a-target-url.com"}))
-		.build()
-		.unwrap(),
-    Some(vec![
-        SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
-    ])
-).await;
+let screen_view_event_id = match tracker.track(screen_view_event, None).await {
+    Ok(uuid) => uuid,
+    Err(e) => panic!("{e}"), // your error handling here
+};
 
-// Tracking a structured event
-tracker.track(
-    StructuredEvent::builder()
-        .category("shop")
-        .action("add-to-basket")
-        .label("Add To Basket")
-        .property("pcs")
-        .value(2.0)
-        .build()
-        .unwrap(),
-    None
-).await
+// Tracking a Self-Describing event with context entity
+let self_describing_event = match SelfDescribingEvent::builder()
+    .schema("iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0")
+    .data(json!({"name": "test", "id": "something else"}))
+    .build()
+{
+    Ok(event) => event,
+    Err(e) => panic!("{e}"), // your error handling here
+};
+
+let event_context = Some(vec![SelfDescribingJson::new(
+    "iglu:org.schema/WebPage/jsonschema/1-0-0",
+    json!({"keywords": ["tester"]}),
+)]);
+
+let self_desc_event_id = match tracker.track(self_describing_event, event_context).await {
+    Ok(uuid) => uuid,
+    Err(e) => panic!("{e}"), // your error handling here
+};
+
+
+// Tracking a Structured event
+let structured_event = match StructuredEvent::builder()
+    .category("shop")
+    .action("add-to-basket")
+    .label("Add To Basket")
+    .property("pcs")
+    .value(2.0)
+    .build()
+{
+    Ok(event) => event,
+    Err(e) => panic!("{e}"), // your error handling here
+};
+
+let struct_event_id = match tracker.track(structured_event, None).await {
+    Ok(uuid) => uuid,
+    Err(e) => panic!("{e}"), // your error handling here
+};
 ```
 
 ## Find Out More

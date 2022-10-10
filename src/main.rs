@@ -19,48 +19,59 @@ use uuid::Uuid;
 async fn main() {
     let tracker = Snowplow::create_tracker("ns", "app_id", "http://localhost:9090", None);
 
-    let self_desc_event_id = tracker
-        .track(
-            SelfDescribingEvent::builder()
-                .schema("iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0")
-                .data(json!({"name": "test", "id": "something else"}))
-                .build()
-                .unwrap(),
-            Some(vec![SelfDescribingJson::new(
-                "iglu:org.schema/WebPage/jsonschema/1-0-0",
-                json!({"keywords": ["tester"]}),
-            )]),
-        )
-        .await
-        .unwrap();
+    // Tracking a Self-Describing event with event context
+    let self_describing_event = match SelfDescribingEvent::builder()
+        .schema("iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0")
+        .data(json!({"name": "test", "id": "something else"}))
+        .build()
+    {
+        Ok(event) => event,
+        Err(e) => panic!("{e}"), // your error handling here
+    };
 
-    let struct_event_id = tracker
-        .track(
-            StructuredEvent::builder()
-                .category("shop")
-                .action("add-to-basket")
-                .label("Add To Basket")
-                .property("pcs")
-                .value(2.0)
-                .build()
-                .unwrap(),
-            None,
-        )
-        .await
-        .unwrap();
+    let event_context = Some(vec![SelfDescribingJson::new(
+        "iglu:org.schema/WebPage/jsonschema/1-0-0",
+        json!({"keywords": ["tester"]}),
+    )]);
 
-    let screen_view_event_id = tracker
-        .track(
-            ScreenViewEvent::builder()
-                .id(Uuid::new_v4())
-                .name("a screen view")
-                .previous_name("previous name")
-                .build()
-                .unwrap(),
-            None,
-        )
-        .await
-        .unwrap();
+    let self_desc_event_id = match tracker.track(self_describing_event, event_context).await {
+        Ok(uuid) => uuid,
+        Err(e) => panic!("{e}"), // your error handling here
+    };
+
+    // Tracking a Structured event
+    let structured_event = match StructuredEvent::builder()
+        .category("shop")
+        .action("add-to-basket")
+        .label("Add To Basket")
+        .property("pcs")
+        .value(2.0)
+        .build()
+    {
+        Ok(event) => event,
+        Err(e) => panic!("{e}"), // your error handling here
+    };
+
+    let struct_event_id = match tracker.track(structured_event, None).await {
+        Ok(uuid) => uuid,
+        Err(e) => panic!("{e}"), // your error handling here
+    };
+
+    // Tracking a Screen View event
+    let screen_view_event = match ScreenViewEvent::builder()
+        .id(Uuid::new_v4())
+        .name("a screen view")
+        .previous_name("previous name")
+        .build()
+    {
+        Ok(event) => event,
+        Err(e) => panic!("{e}"), // your error handling here
+    };
+
+    let screen_view_event_id = match tracker.track(screen_view_event, None).await {
+        Ok(uuid) => uuid,
+        Err(e) => panic!("{e}"), // your error handling here
+    };
 
     println!("--- DEBUGGING ---");
     println!("Self Describing Event: {}", self_desc_event_id);

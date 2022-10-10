@@ -15,36 +15,51 @@
 //!
 //! ## Example usage
 //!
-//! ```
 //! use snowplow_tracker::{Snowplow, SelfDescribingJson, SelfDescribingEvent, Subject};
 //! use serde_json::json;
 //!
 //! // Initialize a tracker instance given a namespace, application ID, Snowplow collector URL, and
 //! // Subject
 //!
-//! let subject = Subject::builder().language("en-gb").build().unwrap();
-//! let tracker = Snowplow::create_tracker("ns", "app_id", "https://...", Some(subject));
+//! let tracker_subject = match Subject::builder().language("en-gb").build() {
+//!     Ok(subject) => subject,
+//!     Err(e) => panic!("{e}"), // your error handling here
+//! };
 //!
-//! // Tracking a self-describing event with a context entity
-//! tracker.track(
-//!     SelfDescribingEvent::builder()
-//!         .schema("iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1")
-//!         .data(json!({"targetUrl": "http://a-target-url.com"}))
-//!         .subject(
-//!             Subject::builder()
-//!             .user_id("user_1")
-//!             .build()
-//!             .unwrap()
-//!         )
-//!         .build()
-//!         .unwrap(),
-//!     Some(vec![
-//!         SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
-//!     ]),
-//! );
-//! ```
+//! let tracker = Snowplow::create_tracker("ns", "app_id", "https://...", Some(tracker_subject));
+//!
+//!
+//! // Tracking a self-describing event with a context entity and subject
+//! let event_subject = match Subject::builder().language("en-gb").build() {
+//!     Ok(subject) => subject,
+//!     Err(e) => panic!("{e}"), // your error handling here
+//! };
+//!
+//! let self_describing_event_build = match SelfDescribingEvent::builder()
+//!     .schema("iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1")
+//!     .data(json!({"targetUrl": "http://a-target-url.com"}))
+//!     .subject(event_subject)
+//! {
+//!     Ok(event) => event,
+//!     Err(e) => panic!("{e}"), // your error handling here
+//! };
+//!
+//! let context = Some(vec![SelfDescribingJson::new(
+//!     "iglu:org.schema/WebPage/jsonschema/1-0-0",
+//!     json!({"keywords": ["tester"]}),
+//! ]));
+//!
+//! let self_desc_event_id = match tracker.track(
+//!     self_describing_event,
+//!     context,
+//! ) {
+//!     Ok(id) => id,
+//!     Err(e) => panic!("{e}"), // your error handling here
+//! }
+//!
 
 mod emitter;
+mod error;
 mod event;
 mod payload;
 mod snowplow;
@@ -52,6 +67,7 @@ mod subject;
 mod tracker;
 
 pub use emitter::Emitter;
+pub use error::Error;
 pub use event::ScreenViewEvent;
 pub use event::SelfDescribingEvent;
 pub use event::StructuredEvent;

@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::error::Error;
 use crate::payload::{
     EventType, Payload, PayloadBuilder, SelfDescribingEventData, SelfDescribingJson,
 };
@@ -21,7 +22,7 @@ use crate::subject::Subject;
 
 /// Trait implemented by event types that enables the tracker to build their payload to be sent to the Collector.
 pub trait EventBuildable {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload;
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error>;
     fn subject(&self) -> &Option<Subject>;
 }
 
@@ -31,6 +32,7 @@ pub trait EventBuildable {
 /// Snowplow uses the schema to validate that the JSON containing the event properties is well-formed.
 #[derive(Serialize, Deserialize, Builder)]
 #[builder(setter(into))]
+#[builder(build_fn(error = "Error"))]
 pub struct SelfDescribingEvent {
     /// A valid Iglu schema path.
     ///
@@ -54,7 +56,7 @@ impl SelfDescribingEvent {
 }
 
 impl EventBuildable for SelfDescribingEvent {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error> {
         payload_builder
             .e(EventType::SelfDescribingEvent)
             .ue_pr(SelfDescribingEventData::new(SelfDescribingJson::new(
@@ -62,7 +64,6 @@ impl EventBuildable for SelfDescribingEvent {
                 self.data,
             )))
             .build()
-            .unwrap()
     }
 
     fn subject(&self) -> &Option<Subject> {
@@ -73,6 +74,7 @@ impl EventBuildable for SelfDescribingEvent {
 /// Event to capture custom consumer interactions without the need to define a custom schema.
 #[derive(Serialize, Deserialize, Builder, Debug, Clone)]
 #[builder(setter(into, strip_option))]
+#[builder(build_fn(error = "Error"))]
 pub struct StructuredEvent {
     /// Name you for the group of objects you want to track e.g. "media", "ecomm".
     #[serde(rename(serialize = "se_ca"))]
@@ -134,12 +136,11 @@ impl StructuredEvent {
 }
 
 impl EventBuildable for StructuredEvent {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error> {
         payload_builder
             .e(EventType::StructuredEvent)
             .structured_event(self)
             .build()
-            .unwrap()
     }
 
     fn subject(&self) -> &Option<Subject> {
@@ -153,6 +154,7 @@ impl EventBuildable for StructuredEvent {
 #[derive(Serialize, Deserialize, Builder)]
 #[serde(rename_all = "camelCase")]
 #[builder(setter(into, strip_option))]
+#[builder(build_fn(error = "Error"))]
 pub struct ScreenViewEvent {
     /// The name of the screen viewed.
     pub name: String,
@@ -198,12 +200,12 @@ impl ScreenViewEvent {
 }
 
 impl EventBuildable for ScreenViewEvent {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error> {
         let event = SelfDescribingEvent::builder()
             .schema("iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0")
             .data(json!(self))
-            .build()
-            .unwrap();
+            .build()?;
+
         event.build_payload(payload_builder)
     }
 
@@ -217,6 +219,7 @@ impl EventBuildable for ScreenViewEvent {
 /// It is a self-describing event with the schema "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0"
 #[derive(Serialize, Deserialize, Builder, Default)]
 #[builder(setter(into, strip_option), default)]
+#[builder(build_fn(error = "Error"))]
 pub struct TimingEvent {
     /// The category of the timed event
     pub category: String,
@@ -243,12 +246,12 @@ impl TimingEvent {
 }
 
 impl EventBuildable for TimingEvent {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Payload {
+    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error> {
         let event = SelfDescribingEvent::builder()
             .schema("iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0")
             .data(json!(self))
-            .build()
-            .unwrap();
+            .build()?;
+
         event.build_payload(payload_builder)
     }
 
@@ -289,7 +292,7 @@ mod tests {
 
         assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
 
-        let payload = event.build_payload(payload_builder);
+        let payload = event.build_payload(payload_builder).unwrap();
         let ue_pr = payload.ue_pr.unwrap();
 
         assert_eq!(
@@ -317,7 +320,7 @@ mod tests {
 
         assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
 
-        let payload = event.build_payload(payload_builder);
+        let payload = event.build_payload(payload_builder).unwrap();
         let event = payload.structured_event.unwrap();
 
         assert_eq!(event.category, "shop");
@@ -342,7 +345,7 @@ mod tests {
 
         assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
 
-        let payload = event.build_payload(payload_builder);
+        let payload = event.build_payload(payload_builder).unwrap();
         let ue_pr = payload.ue_pr.unwrap();
         assert_eq!(
             ue_pr.data.schema,
@@ -377,7 +380,7 @@ mod tests {
                 "label": "Time to fetch map resource"
             }),
         };
-        let data = payload.ue_pr.unwrap().data;
+        let data = payload.unwrap().ue_pr.unwrap().data;
         assert_eq!(data.schema, expected.schema);
         assert_eq!(data.data, expected.data);
     }
@@ -390,5 +393,17 @@ mod tests {
             .dtm("1".to_string())
             .stm("1".to_string())
             .aid("test".to_string())
+    }
+
+    #[test]
+    fn builder_error_shows_first_encountered_missing_field() {
+        let event = StructuredEvent::builder().build().unwrap_err();
+        assert_eq!(event.to_string(), "Field not initialized: category");
+
+        let event = StructuredEvent::builder()
+            .category("category")
+            .build()
+            .unwrap_err();
+        assert_eq!(event.to_string(), "Field not initialized: action");
     }
 }

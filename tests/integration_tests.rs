@@ -240,7 +240,8 @@ async fn track_self_describing_event() {
                 json!({"keywords": ["tester"]}),
             )]),
         )
-        .await;
+        .await
+        .unwrap();
 
     let good_events = micro_endpoint(&micro_url, "good").await;
     let received_event = good_events.as_array().unwrap().last().unwrap();
