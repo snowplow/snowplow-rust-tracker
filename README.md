@@ -36,13 +36,17 @@ use snowplow_tracker::Snowplow;
 ### Using the Tracker
 
 Instantiate a tracker using the `Snowplow::create_tracker` function.
-The function takes three required arguments: `namespace` and `app_id`, and `collector_url`.
-Tracker namespace identifies the tracker instance; you may create multiple trackers with different namespaces.
+The function takes three required arguments: `namespace`, `app_id`, `collector_url`, and one optional argument, `subject`.
+Tracker `namespace` identifies the tracker instance; you may create multiple trackers with different namespaces.
 The `app_id` identifies your app.
 The `collector_url` is the URI of the Snowplow collector to send the events to.
+`subject` allows for an optional Subject to be attached to the tracker, which will be sent with all events
 
 ```rust
-let tracker = Snowplow::create_tracker("ns", "app_id", "https://...");
+use snowplow_tracker::Subject;
+let subject = Subject::builder().language("en-gb").build().unwrap();
+
+let tracker = Snowplow::create_tracker("ns", "app_id", "https://...", Some(subject));
 ```
 
 To track events, simply instantiate their respective types and pass them to the `tracker.track` method with optional context entities.
@@ -61,10 +65,11 @@ tracker.track(
 
 // Tracking a self-describing event with a context entity
 tracker.track(
-    SelfDescribingEvent {
-        schema: "iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1".to_string(),
-        data: json!({"targetUrl": "http://a-target-url.com"})
-    },
+    SelfDescribingEvent.builder()
+        .schema("iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1"),
+        .data(json!({"targetUrl": "http://a-target-url.com"}))
+		.build()
+		.unwrap(),
     Some(vec![
         SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
     ])

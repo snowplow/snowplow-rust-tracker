@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
+use crate::StructuredEvent;
+use crate::Subject;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EventType {
     #[serde(rename(serialize = "se"))]
@@ -25,41 +28,37 @@ pub enum EventType {
 #[derive(Builder, Serialize, Deserialize, Default, Clone, Debug)]
 #[builder(field(public))]
 #[builder(pattern = "owned")]
+#[builder(setter(strip_option))]
 pub struct Payload {
     p: String,
     tv: String,
     pub eid: uuid::Uuid,
     dtm: String,
     stm: String,
-    #[builder(setter(strip_option))]
+
+    #[builder(default)]
     e: Option<EventType>,
     aid: String,
+
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(strip_option))]
     pub(crate) ue_pr: Option<SelfDescribingEventData>,
+
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(strip_option))]
     co: Option<ContextData>,
-    // Stuctured Event
+
+    // Structured Event
     #[builder(default)]
+    #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(strip_option))]
-    pub(crate) se_ca: Option<String>,
+    pub(crate) structured_event: Option<StructuredEvent>,
+
+    // Subject
     #[builder(default)]
+    #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(strip_option))]
-    pub(crate) se_ac: Option<String>,
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) se_la: Option<String>,
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) se_pr: Option<String>,
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) se_va: Option<String>,
+    pub(crate) subject: Option<Subject>,
 }
 
 impl Payload {

@@ -16,21 +16,31 @@
 //! ## Example usage
 //!
 //! ```
-//! use snowplow_tracker::{Snowplow, SelfDescribingJson, SelfDescribingEvent};
+//! use snowplow_tracker::{Snowplow, SelfDescribingJson, SelfDescribingEvent, Subject};
 //! use serde_json::json;
 //!
-//! // Initialize a tracker instance given a namespace, application ID, and Snowplow collector URL
-//! let tracker = Snowplow::create_tracker("ns", "app_id", "https://...");
+//! // Initialize a tracker instance given a namespace, application ID, Snowplow collector URL, and
+//! // Subject
+//!
+//! let subject = Subject::builder().language("en-gb").build().unwrap();
+//! let tracker = Snowplow::create_tracker("ns", "app_id", "https://...", Some(subject));
 //!
 //! // Tracking a self-describing event with a context entity
 //! tracker.track(
-//!     SelfDescribingEvent {
-//!         schema: "iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1".to_string(),
-//!         data: json!({"targetUrl": "http://a-target-url.com"})
-//!     },
+//!     SelfDescribingEvent::builder()
+//!         .schema("iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1")
+//!         .data(json!({"targetUrl": "http://a-target-url.com"}))
+//!         .subject(
+//!             Subject::builder()
+//!             .user_id("user_1")
+//!             .build()
+//!             .unwrap()
+//!         )
+//!         .build()
+//!         .unwrap(),
 //!     Some(vec![
 //!         SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
-//!     ])
+//!     ]),
 //! );
 //! ```
 
@@ -38,6 +48,7 @@ mod emitter;
 mod event;
 mod payload;
 mod snowplow;
+mod subject;
 mod tracker;
 
 pub use emitter::Emitter;
@@ -47,4 +58,5 @@ pub use event::StructuredEvent;
 pub use event::TimingEvent;
 pub use payload::SelfDescribingJson;
 pub use snowplow::Snowplow;
+pub use subject::Subject;
 pub use tracker::Tracker;

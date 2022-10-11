@@ -10,6 +10,7 @@
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use crate::emitter::Emitter;
+use crate::subject::Subject;
 use crate::tracker::Tracker;
 
 pub struct Snowplow;
@@ -17,9 +18,13 @@ pub struct Snowplow;
 /// Main interface for the package used to initialize trackers.
 impl Snowplow {
     /// Creates a new Tracker instance that can be used to track events
-    pub fn create_tracker(namespace: &str, app_id: &str, collector_url: &str) -> Tracker {
+    pub fn create_tracker(
+        namespace: &str,
+        app_id: &str,
+        collector_url: &str,
+        subject: Option<Subject>,
+    ) -> Tracker {
         let emitter = Emitter::new(collector_url);
-        let tracker = Tracker::new(namespace, app_id, emitter);
-        tracker
+        Tracker::new(namespace, app_id, emitter, subject)
     }
 }

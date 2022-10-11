@@ -17,15 +17,15 @@ use uuid::Uuid;
 
 #[tokio::main]
 async fn main() {
-    let tracker = Snowplow::create_tracker("ns", "app_id", "http://localhost:9090");
+    let tracker = Snowplow::create_tracker("ns", "app_id", "http://localhost:9090", None);
 
     let self_desc_event_id = tracker
         .track(
-            SelfDescribingEvent {
-                schema: "iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0"
-                    .to_string(),
-                data: json!({"name": "test", "id": "something else"}),
-            },
+            SelfDescribingEvent::builder()
+                .schema("iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0")
+                .data(json!({"name": "test", "id": "something else"}))
+                .build()
+                .unwrap(),
             Some(vec![SelfDescribingJson::new(
                 "iglu:org.schema/WebPage/jsonschema/1-0-0",
                 json!({"keywords": ["tester"]}),
