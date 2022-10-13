@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
+use crate::Error;
 use crate::StructuredEvent;
 use crate::Subject;
 
@@ -29,6 +30,7 @@ pub enum EventType {
 #[builder(field(public))]
 #[builder(pattern = "owned")]
 #[builder(setter(strip_option))]
+#[builder(build_fn(error = "Error"))]
 pub struct Payload {
     p: String,
     tv: String,
