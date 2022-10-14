@@ -13,11 +13,11 @@ use crate::emitter::Emitter;
 use crate::subject::Subject;
 use crate::tracker::Tracker;
 
+/// Main interface for the package, used to initialize trackers.
 pub struct Snowplow;
 
-/// Main interface for the package used to initialize trackers.
 impl Snowplow {
-    /// Creates a new Tracker instance that can be used to track events
+    /// Creates a new [Tracker] instance
     pub fn create_tracker(
         namespace: &str,
         app_id: &str,

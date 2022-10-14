@@ -44,6 +44,7 @@ pub struct SelfDescribingEvent {
     /// This data must conform to the schema specified in the schema argument, or the event will fail validation and land in bad rows.
     pub data: Value,
 
+    /// The [Subject] of the event.
     #[builder(default)]
     #[serde(skip_serializing)]
     pub subject: Option<Subject>,
@@ -111,6 +112,7 @@ pub struct StructuredEvent {
     #[serde(serialize_with = "optional_f64_to_string")]
     pub value: Option<f64>,
 
+    /// The [Subject] of the event.
     #[builder(default)]
     #[serde(skip_serializing)]
     pub subject: Option<Subject>,
@@ -188,6 +190,7 @@ pub struct ScreenViewEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transition_type: Option<String>,
 
+    /// The [Subject] of the event.
     #[builder(default)]
     #[serde(skip_serializing)]
     pub subject: Option<Subject>,
@@ -234,6 +237,7 @@ pub struct TimingEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
 
+    /// The [Subject] of the event.
     #[builder(default)]
     #[serde(skip_serializing)]
     pub subject: Option<Subject>,

@@ -13,12 +13,13 @@ use crate::{payload::Payload, Error};
 use reqwest::Client;
 use serde_json::json;
 
+/// A component of a [Tracker](crate::Tracker), responsible for sending events to the Snowplow Collector
 pub struct Emitter {
+    /// The URL of your Snowplow [Collector](https://docs.snowplow.io/docs/pipeline-components-and-applications/stream-collector/)
     pub collector_url: String,
     http_client: Client,
 }
 
-/// Emitter is responsible for emitting tracked events to the Snowplow Collector
 impl Emitter {
     pub fn new(collector_url: &str) -> Emitter {
         Emitter {

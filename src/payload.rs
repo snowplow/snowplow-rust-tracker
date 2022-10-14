@@ -13,6 +13,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::Error;
 use crate::StructuredEvent;
@@ -31,10 +32,13 @@ pub enum EventType {
 #[builder(pattern = "owned")]
 #[builder(setter(strip_option))]
 #[builder(build_fn(error = "Error"))]
+/// The final payload that is sent to the collector
+///
+/// For more information, see the [Snowplow Tracker Protocol](https://docs.snowplow.io/docs/collecting-data/collecting-from-own-applications/snowplow-tracker-protocol)
 pub struct Payload {
     p: String,
     tv: String,
-    pub eid: uuid::Uuid,
+    eid: Uuid,
     dtm: String,
     stm: String,
 
