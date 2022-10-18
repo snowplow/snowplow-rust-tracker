@@ -25,7 +25,7 @@ pub struct TrackerConfig {
     pub encode_base_64: bool,
 }
 
-/// Snowplow tracker instance used to track events to the Snowplow Collector
+/// The Snowplow tracker, used to track events
 pub struct Tracker {
     /// Tracker namespace that identifies the tracker within the app
     namespace: String,
@@ -41,6 +41,7 @@ pub struct Tracker {
 }
 
 impl Tracker {
+    /// Creates a new Tracker instance
     pub fn new(
         namespace: &str,
         app_id: &str,
@@ -64,22 +65,52 @@ impl Tracker {
         }
     }
 
-    /// The `namespace` of this [Tracker]
     pub fn namespace(&self) -> &str {
         &self.namespace
     }
 
-    /// The `app_id` of this [Tracker]
     pub fn app_id(&self) -> &str {
         &self.app_id
     }
 
-    /// The [Emitter] instance of this [Tracker]
     pub fn emitter(&self) -> &Emitter {
         &self.emitter
     }
 
-    /// Provides mutable access to the [Tracker] `subject` field
+    pub fn subject(&self) -> &Subject {
+        &self.subject
+    }
+
+    /// Provides mutable access to the `subject` field
+    ///
+    /// ## Example
+    /// ```
+    /// use snowplow_tracker::{Snowplow, Subject};
+    ///
+    /// // Build a Subject that will be attached to this tracker
+    /// let tracker_subject = match Subject::builder().user_id("user_1").language("en-gb").build() {
+    ///     Ok(subject) => subject,
+    ///     Err(e) => panic!("Subject could not be built: {e}"), // your error handling here
+    /// };
+    ///
+    /// // Create a tracker with attached Subject
+    /// let mut tracker = Snowplow::create_tracker("ns", "app_id", "https://...", Some(tracker_subject));
+    ///
+    /// assert_eq!(tracker.subject().user_id, Some("user_1".to_string()));
+    /// assert_eq!(tracker.subject().language, Some("en-gb".to_string()));
+    ///
+    /// // Bulild a new Subject to replace the instance in `tracker`
+    /// let new_tracker_subject = match Subject::builder().user_id("user_2").build() {
+    ///     Ok(subject) => subject,
+    ///     Err(e) => panic!("Subject could not be built: {e}"), // your error handling here
+    /// };
+    ///
+    /// // We must dereference here to assign to the mutably borrowed value
+    /// *tracker.subject_mut() = new_tracker_subject;
+    ///
+    /// assert_eq!(tracker.subject().user_id, Some("user_2".to_string()));
+    /// assert_eq!(tracker.subject().language, None);
+    /// ```
     pub fn subject_mut(&mut self) -> &mut Subject {
         &mut self.subject
     }

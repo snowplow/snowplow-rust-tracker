@@ -13,10 +13,11 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Subject allows you to attach additional information about your application's environment
+/// Subject allows you to attach additional information about your application's environment.
 ///
-/// A Subject can be (attached to either a Tracker) where it will be sent with every Event, and/or
-/// attached to an Event, with the Event-level subject taking priority over Tracker-level
+/// A Subject can be attached to:
+/// - A [crate::Tracker], where it will be sent with every Event
+/// - An Event itself, with the Event-level Subject fields taking priority over Tracker-level (if present)
 #[derive(Serialize, Deserialize, Builder, Default, Clone, Debug)]
 #[builder(setter(into, strip_option), default)]
 pub struct Subject {
@@ -84,6 +85,21 @@ impl Subject {
     }
 
     /// Merges another instance of [Subject], with self taking priority
+    ///
+    /// Also useful in conjunction with [Tracker.subject_mut](crate::Tracker::subject_mut) to update the subject field, without replacing
+    ///
+    /// ## Example
+    /// ```
+    /// use snowplow_tracker::Subject;
+    ///
+    /// let priority_subject = Subject::builder().user_id("user_1").build().unwrap();
+    /// let subject_to_merge = Subject::builder().user_id("user_2").language("en-gb").build().unwrap();
+    ///
+    /// let merged_subject = priority_subject.merge(subject_to_merge);
+    ///
+    /// assert_eq!(merged_subject.user_id, Some("user_1".to_string()));
+    /// assert_eq!(merged_subject.language, Some("en-gb".to_string()));
+    ///```
     pub fn merge(self, other: Subject) -> Self {
         Self {
             user_id: self.user_id.or(other.user_id),

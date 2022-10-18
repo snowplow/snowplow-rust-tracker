@@ -4,7 +4,7 @@
 [![Build Status][gh-actions-image]][gh-actions]
 [![License][license-image]][license]
 
-Snowplow is a scalable open-source platform for rich, high quality, low-latency data collection. It is designed to collect high quality, complete behavioral data for enterprise business.
+Snowplow is a scalable open-source platform for rich, high-quality, low-latency data collection. It is designed to collect high-quality, complete behavioral data for enterprise business.
 
 **To find out more, please check out the [Snowplow website][website] and our [documentation][docs].**
 
@@ -61,12 +61,12 @@ let screen_view_event = match ScreenViewEvent::builder()
     .build()
 {
     Ok(event) => event,
-    Err(e) => panic!("{e}"), // your error handling here
+    Err(e) => panic!("ScreenViewEvent could not be built: {e}"), // your error handling here
 };
 
 let screen_view_event_id = match tracker.track(screen_view_event, None).await {
     Ok(uuid) => uuid,
-    Err(e) => panic!("{e}"), // your error handling here
+    Err(e) => panic!("Failed to emit event: {e}"), // your error handling here
 };
 
 // Tracking a Self-Describing event with context entity
@@ -76,7 +76,7 @@ let self_describing_event = match SelfDescribingEvent::builder()
     .build()
 {
     Ok(event) => event,
-    Err(e) => panic!("{e}"), // your error handling here
+    Err(e) => panic!("SelfDescribingEvent could not be built: {e}"), // your error handling here
 };
 
 let event_context = Some(vec![SelfDescribingJson::new(
@@ -86,7 +86,7 @@ let event_context = Some(vec![SelfDescribingJson::new(
 
 let self_desc_event_id = match tracker.track(self_describing_event, event_context).await {
     Ok(uuid) => uuid,
-    Err(e) => panic!("{e}"), // your error handling here
+    Err(e) => panic!("Failed to emit event: {e}"), // your error handling here
 };
 
 
@@ -100,26 +100,26 @@ let structured_event = match StructuredEvent::builder()
     .build()
 {
     Ok(event) => event,
-    Err(e) => panic!("{e}"), // your error handling here
+    Err(e) => panic!("StructuredEvent could not be built: {e}"), // your error handling here
 };
 
 let struct_event_id = match tracker.track(structured_event, None).await {
     Ok(uuid) => uuid,
-    Err(e) => panic!("{e}"), // your error handling here
+    Err(e) => panic!("Failed to emit event: {e}"), // your error handling here
 };
 ```
 
 ## Find Out More
 
 | Technical Docs                    | Setup Guide                 |
-|-----------------------------------|-----------------------------|
+| --------------------------------- | --------------------------- |
 | [![i1][techdocs-image]][techdocs] | [![i2][setup-image]][setup] |
 | [Technical Docs][techdocs]        | [Setup Guide][setup]        |
 
 ## Maintainers
 
 | Contributing                                 |
-|----------------------------------------------|
+| -------------------------------------------- |
 | [![i4][contributing-image]](CONTRIBUTING.md) |
 | [Contributing](CONTRIBUTING.md)              |
 
@@ -143,8 +143,8 @@ limitations under the License.
 [docs]: https://docs.snowplow.io/
 [rust-docs]: https://docs.snowplow.io/docs/collecting-data/collecting-from-own-applications/rust-tracker/
 
-[gh-actions]: https://github.com/snowplow-incubator/snowplow-rust-tracker/actions/workflows/build.yml
-[gh-actions-image]: https://github.com/snowplow-incubator/snowplow-rust-tracker/actions/workflows/build.yml/badge.svg
+[gh-actions]: https://github.com/snowplow/snowplow-rust-tracker/actions/workflows/ci.yml
+[gh-actions-image]: https://github.com/snowplow/snowplow-rust-tracker/actions/workflows/ci.yml/badge.svg
 
 [license]: https://www.apache.org/licenses/LICENSE-2.0
 [license-image]: https://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
