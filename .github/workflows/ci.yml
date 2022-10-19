@@ -1,6 +1,11 @@
 name: CI
 
-on: "push"
+on:
+  push:
+    # Prevents this workflow running on tag push, as it is called in publish.yml also
+    branches:
+      - "**"
+  workflow_call:
 
 jobs:
   formatting:
