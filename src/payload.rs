@@ -9,6 +9,8 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
+use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
+
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -38,7 +40,7 @@ pub enum EventType {
 pub struct Payload {
     p: String,
     tv: String,
-    eid: Uuid,
+    pub(crate) eid: Uuid,
     dtm: String,
     stm: String,
 
@@ -70,6 +72,19 @@ pub struct Payload {
 impl Payload {
     pub fn builder() -> PayloadBuilder {
         PayloadBuilder::default()
+    }
+}
+
+impl PayloadBuilder {
+    pub fn finalise_payload(self) -> Result<Payload, Error> {
+        let since_the_epoch =
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|e: SystemTimeError| {
+                    Error::BuilderError(format!("Failed to get current time: {}", e.to_string()))
+                })?;
+
+        self.stm(since_the_epoch.as_millis().to_string()).build()
     }
 }
 

@@ -15,14 +15,12 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::payload::{
-    EventType, Payload, PayloadBuilder, SelfDescribingEventData, SelfDescribingJson,
-};
+use crate::payload::{EventType, PayloadBuilder, SelfDescribingEventData, SelfDescribingJson};
 use crate::subject::Subject;
 
-/// Trait implemented by event types that enables the tracker to build their payload to be sent to the Collector.
-pub trait EventBuildable {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error>;
+/// Trait implemented by event types that enables the event to add itself to a PayloadBuilder.
+pub trait PayloadAddable {
+    fn add_to_payload(self, payload_builder: PayloadBuilder) -> PayloadBuilder;
     fn subject(&self) -> &Option<Subject>;
 }
 
@@ -56,15 +54,14 @@ impl SelfDescribingEvent {
     }
 }
 
-impl EventBuildable for SelfDescribingEvent {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error> {
+impl PayloadAddable for SelfDescribingEvent {
+    fn add_to_payload(self, payload_builder: PayloadBuilder) -> PayloadBuilder {
         payload_builder
             .e(EventType::SelfDescribingEvent)
             .ue_pr(SelfDescribingEventData::new(SelfDescribingJson::new(
                 &self.schema,
                 self.data,
             )))
-            .build()
     }
 
     fn subject(&self) -> &Option<Subject> {
@@ -137,12 +134,11 @@ impl StructuredEvent {
     }
 }
 
-impl EventBuildable for StructuredEvent {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error> {
+impl PayloadAddable for StructuredEvent {
+    fn add_to_payload(self, payload_builder: PayloadBuilder) -> PayloadBuilder {
         payload_builder
             .e(EventType::StructuredEvent)
             .structured_event(self)
-            .build()
     }
 
     fn subject(&self) -> &Option<Subject> {
@@ -202,14 +198,15 @@ impl ScreenViewEvent {
     }
 }
 
-impl EventBuildable for ScreenViewEvent {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error> {
-        let event = SelfDescribingEvent::builder()
-            .schema("iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0")
-            .data(json!(self))
-            .build()?;
+impl PayloadAddable for ScreenViewEvent {
+    fn add_to_payload(self, payload_builder: PayloadBuilder) -> PayloadBuilder {
+        let event = SelfDescribingEvent {
+            schema: "iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0".to_string(),
+            data: json!(self),
+            subject: self.subject,
+        };
 
-        event.build_payload(payload_builder)
+        event.add_to_payload(payload_builder)
     }
 
     fn subject(&self) -> &Option<Subject> {
@@ -249,14 +246,15 @@ impl TimingEvent {
     }
 }
 
-impl EventBuildable for TimingEvent {
-    fn build_payload(self, payload_builder: PayloadBuilder) -> Result<Payload, Error> {
-        let event = SelfDescribingEvent::builder()
-            .schema("iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0")
-            .data(json!(self))
-            .build()?;
+impl PayloadAddable for TimingEvent {
+    fn add_to_payload(self, payload_builder: PayloadBuilder) -> PayloadBuilder {
+        let event = SelfDescribingEvent {
+            schema: "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
+            data: json!(self),
+            subject: self.subject,
+        };
 
-        event.build_payload(payload_builder)
+        event.add_to_payload(payload_builder)
     }
 
     fn subject(&self) -> &Option<Subject> {
@@ -266,6 +264,8 @@ impl EventBuildable for TimingEvent {
 
 #[cfg(test)]
 mod tests {
+    use crate::payload::Payload;
+
     use super::*;
 
     #[test]
@@ -296,7 +296,7 @@ mod tests {
 
         assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
 
-        let payload = event.build_payload(payload_builder).unwrap();
+        let payload = event.add_to_payload(payload_builder).build().unwrap();
         let ue_pr = payload.ue_pr.unwrap();
 
         assert_eq!(
@@ -324,7 +324,7 @@ mod tests {
 
         assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
 
-        let payload = event.build_payload(payload_builder).unwrap();
+        let payload = event.add_to_payload(payload_builder).build().unwrap();
         let event = payload.structured_event.unwrap();
 
         assert_eq!(event.category, "shop");
@@ -349,7 +349,7 @@ mod tests {
 
         assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
 
-        let payload = event.build_payload(payload_builder).unwrap();
+        let payload = event.add_to_payload(payload_builder).build().unwrap();
         let ue_pr = payload.ue_pr.unwrap();
         assert_eq!(
             ue_pr.data.schema,
@@ -374,7 +374,7 @@ mod tests {
 
         assert_eq!(&event.subject().clone().unwrap().user_id.unwrap(), "user_1");
 
-        let payload = event.build_payload(payload_builder);
+        let payload = event.add_to_payload(payload_builder).build().unwrap();
         let expected = SelfDescribingJson {
             schema: "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
             data: json!({
@@ -384,7 +384,7 @@ mod tests {
                 "label": "Time to fetch map resource"
             }),
         };
-        let data = payload.unwrap().ue_pr.unwrap().data;
+        let data = payload.ue_pr.unwrap().data;
         assert_eq!(data.schema, expected.schema);
         assert_eq!(data.data, expected.data);
     }

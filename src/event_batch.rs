@@ -9,22 +9,25 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
-use crate::emitter::BatchEmitter;
-use crate::subject::Subject;
-use crate::tracker::Tracker;
+use serde_json::json;
 
-/// Main interface for the package, used to initialize trackers.
-pub struct Snowplow;
+use crate::{payload::Payload, SelfDescribingJson};
 
-impl Snowplow {
-    /// Creates a new [Tracker] instance
-    pub fn create_tracker(
-        namespace: &str,
-        app_id: &str,
-        collector_url: &str,
-        subject: Option<Subject>,
-    ) -> Tracker {
-        let emitter = BatchEmitter::new(collector_url);
-        Tracker::new(namespace, app_id, emitter, subject)
+const PAYLOAD_DATA_SCHEMA: &str =
+    "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4";
+
+/// A batch of events to be sent to the collector.
+#[derive(Debug)]
+pub struct EventBatch {
+    pub events: Vec<Payload>,
+}
+
+impl EventBatch {
+    /// Creates a sendable payload from the batch.
+    pub fn as_payload(&self) -> SelfDescribingJson {
+        SelfDescribingJson {
+            schema: PAYLOAD_DATA_SCHEMA.to_string(),
+            data: json!(self.events),
+        }
     }
 }

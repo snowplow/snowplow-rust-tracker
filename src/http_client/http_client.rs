@@ -9,22 +9,20 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
-use crate::emitter::BatchEmitter;
-use crate::subject::Subject;
-use crate::tracker::Tracker;
+use async_trait::async_trait;
 
-/// Main interface for the package, used to initialize trackers.
-pub struct Snowplow;
+use crate::payload::SelfDescribingJson;
+use crate::Error;
 
-impl Snowplow {
-    /// Creates a new [Tracker] instance
-    pub fn create_tracker(
-        namespace: &str,
-        app_id: &str,
-        collector_url: &str,
-        subject: Option<Subject>,
-    ) -> Tracker {
-        let emitter = BatchEmitter::new(collector_url);
-        Tracker::new(namespace, app_id, emitter, subject)
-    }
+/// A HttpClient is responsible for sending events to the collector.
+///
+/// This is an async trait, using the [async_trait crate](https://crates.io/crates/async-trait).
+///
+/// Implement this trait to use your own HttpClient implementation on an [Emitter](crate::Emitter).
+#[async_trait]
+pub trait HttpClient {
+    /// Send a [SelfDescribingJson] to the collector via POST
+    async fn post(&self, payload: SelfDescribingJson) -> Result<(), Error>;
+    /// Duplicate the HttpClient
+    fn clone(&self) -> Box<dyn HttpClient + Send + Sync>;
 }

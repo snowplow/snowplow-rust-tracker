@@ -10,14 +10,22 @@
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
 use serde_json::json;
-use snowplow_tracker::{
-    ScreenViewEvent, SelfDescribingEvent, SelfDescribingJson, Snowplow, StructuredEvent,
-};
 use uuid::Uuid;
 
-#[tokio::main]
-async fn main() {
-    let tracker = Snowplow::create_tracker("ns", "app_id", "http://localhost:9090", None);
+use snowplow_tracker::{
+    BatchEmitter, InMemoryEventStore, ScreenViewEvent, SelfDescribingEvent, SelfDescribingJson,
+    StructuredEvent, Tracker,
+};
+
+fn main() {
+    let event_store = InMemoryEventStore::new(10, 1);
+    let emitter = BatchEmitter::builder()
+        .collector_url("http://localhost:9090")
+        .event_store(event_store)
+        .build()
+        .unwrap();
+
+    let mut tracker = Tracker::new("ns", "app_id", emitter, None);
 
     // Tracking a Self-Describing event with event context
     let self_describing_event = match SelfDescribingEvent::builder()
@@ -34,10 +42,7 @@ async fn main() {
         json!({"keywords": ["tester"]}),
     )]);
 
-    let self_desc_event_id = match tracker.track(self_describing_event, event_context).await {
-        Ok(uuid) => uuid,
-        Err(e) => panic!("{e}"), // your error handling here
-    };
+    let self_desc_event_id = tracker.track(self_describing_event, event_context).unwrap();
 
     // Tracking a Structured event
     let structured_event = match StructuredEvent::builder()
@@ -52,7 +57,7 @@ async fn main() {
         Err(e) => panic!("{e}"), // your error handling here
     };
 
-    let struct_event_id = match tracker.track(structured_event, None).await {
+    let struct_event_id = match tracker.track(structured_event, None) {
         Ok(uuid) => uuid,
         Err(e) => panic!("{e}"), // your error handling here
     };
@@ -68,10 +73,13 @@ async fn main() {
         Err(e) => panic!("{e}"), // your error handling here
     };
 
-    let screen_view_event_id = match tracker.track(screen_view_event, None).await {
+    let screen_view_event_id = match tracker.track(screen_view_event, None) {
         Ok(uuid) => uuid,
         Err(e) => panic!("{e}"), // your error handling here
     };
+
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    tracker.close_emitter().unwrap();
 
     println!("--- DEBUGGING ---");
     println!("Self Describing Event: {}", self_desc_event_id);

@@ -32,7 +32,7 @@
 //!     };
 //!
 //!     // Create a tracker
-//!     let tracker = Snowplow::create_tracker("ns", "app_id", "https://example.com", Some(tracker_subject));
+//!     let mut tracker = Snowplow::create_tracker("ns", "app_id", "https://example.com", Some(tracker_subject));
 //!
 //!     // Build a Self-Describing Event, with the schema of the event we want to track, along
 //!     // with relevent, schema-conforming, data
@@ -46,28 +46,36 @@
 //!     };
 //!
 //!     // Track our Self-Describing Event
-//!     let self_desc_event_uuid = match tracker.track(self_describing_event, None).await {
+//!     let self_desc_event_uuid = match tracker.track(self_describing_event, None) {
 //!         Ok(uuid) => uuid,
 //!         Err(e) => panic!("Failed to emit event: {e}"), // your error handling here
 //!     };
+//!
+//!      // Close the tracker emitter thread
+//!      match tracker.close_emitter() {
+//!          Ok(_) => (),
+//!          Err(e) => panic!("Emitter could not be closed: {e}"), // your error handling here
+//!      };
 //! }
 //! ```
 
 mod emitter;
 mod error;
 mod event;
+mod event_batch;
+mod event_store;
+mod http_client;
 mod payload;
 mod snowplow;
 mod subject;
 mod tracker;
 
-pub use emitter::Emitter;
+pub use emitter::{BatchEmitter, Emitter};
 pub use error::Error;
-pub use event::ScreenViewEvent;
-pub use event::SelfDescribingEvent;
-pub use event::StructuredEvent;
-pub use event::TimingEvent;
-pub use payload::SelfDescribingJson;
+pub use event::{ScreenViewEvent, SelfDescribingEvent, StructuredEvent, TimingEvent};
+pub use event_store::{EventStore, InMemoryEventStore};
+pub use http_client::{HttpClient, ReqwestClient};
+pub use payload::{Payload, PayloadBuilder, SelfDescribingJson};
 pub use snowplow::Snowplow;
 pub use subject::Subject;
 pub use tracker::Tracker;

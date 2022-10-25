@@ -1,35 +1,30 @@
 use serde_json::json;
-use testcontainers::core::WaitFor;
-use testcontainers::images::generic::GenericImage;
-use testcontainers::{clients::Cli, Container};
+use testcontainers::clients::Cli;
 use uuid::Uuid;
 
 use snowplow_tracker::{
-    ScreenViewEvent, SelfDescribingEvent, SelfDescribingJson, Snowplow, StructuredEvent, Subject,
-    TimingEvent,
+    BatchEmitter, InMemoryEventStore, ScreenViewEvent, SelfDescribingEvent, SelfDescribingJson,
+    StructuredEvent, Subject, TimingEvent, Tracker,
 };
 
-fn micro() -> GenericImage {
-    let running_message = WaitFor::message_on_stderr("REST interface bound to /0.0.0.0:9090");
+mod common;
+use common::{micro_endpoint, setup, wait_for_events};
 
-    GenericImage::new("snowplow/snowplow-micro", "latest")
-        .with_exposed_port(9090)
-        .with_wait_for(running_message.clone())
-}
-
-async fn micro_endpoint(micro_url: &str, page: &str) -> serde_json::Value {
-    let resp = reqwest::get(micro_url.to_string() + "/micro/" + page)
-        .await
+// A tracker with batch/queue size of 1, so it sends every event immediately
+fn test_tracker(
+    micro_endpoint: &str,
+    subject: Option<Subject>,
+    queue_capacity: Option<usize>,
+    batch_size: Option<usize>,
+) -> Tracker {
+    let event_store = InMemoryEventStore::new(queue_capacity.unwrap_or(1), batch_size.unwrap_or(1));
+    let emitter = BatchEmitter::builder()
+        .collector_url(micro_endpoint)
+        .event_store(event_store)
+        .build()
         .unwrap();
-    let text = resp.text().await.unwrap();
-    serde_json::from_str(&text).unwrap()
-}
 
-fn setup(docker: &'_ Cli) -> (Container<'_, GenericImage>, String) {
-    let container = docker.run(micro());
-    let host_port = container.get_host_port_ipv4(9090);
-    let micro_url = format!("http://0.0.0.0:{host_port}");
-    (container, micro_url)
+    Tracker::new("test-namespace", "test-app-id", emitter, subject)
 }
 
 #[tokio::test]
@@ -37,7 +32,7 @@ async fn track_valid_event_to_good() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+    let mut tracker = test_tracker(&micro_url, None, None, None);
 
     let screenview_event = ScreenViewEvent::builder()
         .id(Uuid::new_v4())
@@ -46,10 +41,14 @@ async fn track_valid_event_to_good() {
         .build()
         .unwrap();
 
-    tracker.track(screenview_event, None).await.unwrap();
+    tracker.track(screenview_event, None).unwrap();
 
-    let all_events = micro_endpoint(&micro_url, "all").await;
-    assert_eq!(1, all_events["good"]);
+    wait_for_events(&micro_url, "good", 1).await;
+    tracker.close_emitter().unwrap();
+
+    let req = micro_endpoint(&micro_url, "good").await;
+    let good_events = req.as_array().unwrap();
+    assert_eq!(1, good_events.len());
 }
 
 #[tokio::test]
@@ -57,7 +56,7 @@ async fn track_event_with_subject() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+    let mut tracker = test_tracker(&micro_url, None, None, None);
     let domain_user_id = Uuid::new_v4();
     let network_user_id = Uuid::new_v4();
     let session_user_id = Uuid::new_v4();
@@ -81,7 +80,10 @@ async fn track_event_with_subject() {
         .build()
         .unwrap();
 
-    tracker.track(screenview_event, None).await.unwrap();
+    tracker.track(screenview_event, None).unwrap();
+
+    wait_for_events(&micro_url, "good", 1).await;
+    tracker.close_emitter().unwrap();
 
     let good_events = micro_endpoint(&micro_url, "good").await;
     let event = &good_events.as_array().unwrap().last().unwrap()["event"];
@@ -101,7 +103,7 @@ async fn track_event_with_partial_subject() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+    let mut tracker = test_tracker(&micro_url, None, None, None);
 
     let subject = Subject::builder()
         .user_id("user_1")
@@ -118,7 +120,9 @@ async fn track_event_with_partial_subject() {
         .build()
         .unwrap();
 
-    tracker.track(screenview_event, None).await.unwrap();
+    tracker.track(screenview_event, None).unwrap();
+    wait_for_events(&micro_url, "good", 1).await;
+    tracker.close_emitter().unwrap();
 
     let good_events = micro_endpoint(&micro_url, "good").await;
     let event = &good_events.as_array().unwrap().last().unwrap()["event"];
@@ -143,7 +147,7 @@ async fn event_subject_overrides_tracker_subject() {
     let (_container, micro_url) = setup(&docker);
 
     let tracker_subject = Subject::builder().user_id("user_1").build().unwrap();
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, Some(tracker_subject));
+    let mut tracker = test_tracker(&micro_url, Some(tracker_subject), None, None);
     let subject = Subject::builder().user_id("user_2").build().unwrap();
 
     let screenview_event = ScreenViewEvent::builder()
@@ -153,7 +157,9 @@ async fn event_subject_overrides_tracker_subject() {
         .build()
         .unwrap();
 
-    tracker.track(screenview_event, None).await.unwrap();
+    tracker.track(screenview_event, None).unwrap();
+    wait_for_events(&micro_url, "good", 1).await;
+    tracker.close_emitter().unwrap();
 
     let good_events = micro_endpoint(&micro_url, "good").await;
     let event = &good_events.as_array().unwrap().last().unwrap()["event"];
@@ -166,7 +172,7 @@ async fn track_screen_view_event() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+    let mut tracker = test_tracker(&micro_url, None, None, None);
 
     let screenview_event = ScreenViewEvent::builder()
         .id(Uuid::new_v4())
@@ -184,7 +190,9 @@ async fn track_screen_view_event() {
         "data" : serde_json::to_value(&screenview_event).unwrap(),
     });
 
-    tracker.track(screenview_event, None).await.unwrap();
+    tracker.track(screenview_event, None).unwrap();
+    wait_for_events(&micro_url, "good", 1).await;
+    tracker.close_emitter().unwrap();
 
     let good_events = micro_endpoint(&micro_url, "good").await;
 
@@ -199,7 +207,7 @@ async fn track_structured_event() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+    let mut tracker = test_tracker(&micro_url, None, None, None);
 
     let structured_event = StructuredEvent::builder()
         .category("shop")
@@ -210,7 +218,9 @@ async fn track_structured_event() {
         .build()
         .unwrap();
 
-    tracker.track(structured_event, None).await.unwrap();
+    tracker.track(structured_event, None).unwrap();
+    wait_for_events(&micro_url, "good", 1).await;
+    tracker.close_emitter().unwrap();
 
     let good_events = micro_endpoint(&micro_url, "good").await;
     let event = &good_events.as_array().unwrap().last().unwrap()["event"];
@@ -227,7 +237,7 @@ async fn track_self_describing_event() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+    let mut tracker = test_tracker(&micro_url, None, None, None);
     tracker
         .track(
             SelfDescribingEvent::builder()
@@ -240,8 +250,10 @@ async fn track_self_describing_event() {
                 json!({"keywords": ["tester"]}),
             )]),
         )
-        .await
         .unwrap();
+
+    wait_for_events(&micro_url, "good", 1).await;
+    tracker.close_emitter().unwrap();
 
     let good_events = micro_endpoint(&micro_url, "good").await;
     let received_event = good_events.as_array().unwrap().last().unwrap();
@@ -283,7 +295,7 @@ async fn track_timing_event() {
     let docker = Cli::default();
     let (_container, micro_url) = setup(&docker);
 
-    let tracker = Snowplow::create_tracker("ns", "app_id", &micro_url, None);
+    let mut tracker = test_tracker(&micro_url, None, None, None);
 
     let timing_event = TimingEvent::builder()
         .category("fetch_resource")
@@ -298,7 +310,9 @@ async fn track_timing_event() {
         "data" : serde_json::to_value(&timing_event).unwrap(),
     });
 
-    tracker.track(timing_event, None).await.unwrap();
+    tracker.track(timing_event, None).unwrap();
+    wait_for_events(&micro_url, "good", 1).await;
+    tracker.close_emitter().unwrap();
 
     let good_events = micro_endpoint(&micro_url, "good").await;
 
@@ -306,4 +320,46 @@ async fn track_timing_event() {
         expected_event,
         good_events.as_array().unwrap().last().unwrap()["event"]["unstruct_event"]["data"]
     );
+}
+
+#[tokio::test]
+async fn track_many_events() {
+    let docker = Cli::default();
+    let (_container, micro_url) = setup(&docker);
+
+    let mut tracker = test_tracker(&micro_url, None, Some(10), Some(2));
+    let mut expected: Vec<serde_json::Value> = vec![];
+
+    for i in 0..10 {
+        let event = TimingEvent::builder()
+            .category("fetch_resource")
+            .variable("map_loaded")
+            .timing(i)
+            .label("Time to fetch map resource")
+            .build()
+            .unwrap();
+
+        let expected_event = json!({
+            "schema": "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
+            "data" : serde_json::to_value(&event).unwrap(),
+        });
+
+        tracker.track(event, None).unwrap();
+        expected.push(expected_event);
+    }
+
+    wait_for_events(&micro_url, "good", 10).await;
+    tracker.close_emitter().unwrap();
+    let good_events = micro_endpoint(&micro_url, "good").await;
+
+    expected.iter().for_each(|expected_event| {
+        assert!(good_events
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(
+                |received_event| received_event["event"]["unstruct_event"]["data"]
+                    == *expected_event
+            ))
+    })
 }
