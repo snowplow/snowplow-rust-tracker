@@ -1,0 +1,10 @@
+Version 0.1.0 (2022-10-21)
+--------------------------
+Improve testing (#8)
+Add CI (#7)
+Add TimingEvent (#11)
+Create Subject (#13)
+Ensure no panics (#15)
+Improve package docs (#17)
+Create CD (#19)
+Add CHANGELOG (#22)

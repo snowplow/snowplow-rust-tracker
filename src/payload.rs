@@ -13,6 +13,11 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
+use uuid::Uuid;
+
+use crate::Error;
+use crate::StructuredEvent;
+use crate::Subject;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EventType {
@@ -25,41 +30,41 @@ pub enum EventType {
 #[derive(Builder, Serialize, Deserialize, Default, Clone, Debug)]
 #[builder(field(public))]
 #[builder(pattern = "owned")]
+#[builder(setter(strip_option))]
+#[builder(build_fn(error = "Error"))]
+/// The final payload that is sent to the collector
+///
+/// For more information, see the [Snowplow Tracker Protocol](https://docs.snowplow.io/docs/collecting-data/collecting-from-own-applications/snowplow-tracker-protocol)
 pub struct Payload {
     p: String,
     tv: String,
-    pub eid: uuid::Uuid,
+    eid: Uuid,
     dtm: String,
     stm: String,
-    #[builder(setter(strip_option))]
+
+    #[builder(default)]
     e: Option<EventType>,
     aid: String,
+
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(strip_option))]
     pub(crate) ue_pr: Option<SelfDescribingEventData>,
+
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(strip_option))]
     co: Option<ContextData>,
-    // Stuctured Event
+
+    // Structured Event
     #[builder(default)]
+    #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(strip_option))]
-    pub(crate) se_ca: Option<String>,
+    pub(crate) structured_event: Option<StructuredEvent>,
+
+    // Subject
     #[builder(default)]
+    #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(strip_option))]
-    pub(crate) se_ac: Option<String>,
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) se_la: Option<String>,
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) se_pr: Option<String>,
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) se_va: Option<String>,
+    pub(crate) subject: Option<Subject>,
 }
 
 impl Payload {
@@ -77,8 +82,10 @@ pub struct SelfDescribingEventData {
 impl SelfDescribingEventData {
     pub fn new(data: SelfDescribingJson) -> SelfDescribingEventData {
         SelfDescribingEventData {
-            schema:  String::from("iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"),
-            data: data
+            schema: String::from(
+                "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
+            ),
+            data: data,
         }
     }
 }
@@ -133,7 +140,7 @@ impl ContextData {
     pub fn new(data: Vec<SelfDescribingJson>) -> ContextData {
         ContextData {
             schema: String::from("iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1"),
-            data
+            data,
         }
     }
 }

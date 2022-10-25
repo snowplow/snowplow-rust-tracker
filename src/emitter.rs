@@ -9,16 +9,17 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
+use crate::{payload::Payload, Error};
 use reqwest::Client;
-use crate::payload::Payload;
 use serde_json::json;
 
+/// A component of a [Tracker](crate::Tracker), responsible for sending events to the Snowplow Collector
 pub struct Emitter {
+    /// The URL of your Snowplow [Collector](https://docs.snowplow.io/docs/pipeline-components-and-applications/stream-collector/)
     pub collector_url: String,
     http_client: Client,
 }
 
-/// Emitter is responsible for emitting tracked events to the Snowplow Collector
 impl Emitter {
     pub fn new(collector_url: &str) -> Emitter {
         Emitter {
@@ -28,15 +29,11 @@ impl Emitter {
     }
 
     /// Add event to be sent to the Collector
-    pub async fn add(&self, payload: Payload) -> Result<(), reqwest::Error> {
-        let result = self.post(payload).await;
-        match result {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e)
-        }
+    pub async fn add(&self, payload: Payload) -> Result<(), Error> {
+        self.post(payload).await
     }
 
-    async fn post(&self, payload: Payload) -> Result<String, reqwest::Error> {
+    async fn post(&self, payload: Payload) -> Result<(), Error> {
         let collector_url = self.collector_url.to_string() + "/com.snowplowanalytics.snowplow/tp2";
 
         let payload = json!({
@@ -44,15 +41,15 @@ impl Emitter {
             "data": vec![payload]
         });
 
-        let resp = self
+        match self
             .http_client
             .post(collector_url)
             .json(&payload)
             .send()
-            .await?;
-
-        resp.text().await
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(Error::EmitterError(e.to_string())),
+        }
     }
 }
-
-

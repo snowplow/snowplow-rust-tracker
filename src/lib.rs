@@ -9,41 +9,65 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
-//! # Snowplow Rust Tracker
+//! # Snowplow Tracker
 //!
-//! The Snowplow Rust Tracker allows you to track Snowplow events in your Rust applications.
+//! The [Snowplow](https://snowplow.io) Rust Tracker allows you to track Snowplow events in your Rust applications.
+//! For information on how to effectively design tracking using Snowplow, visit our [guide on tracking design.](https://docs.snowplow.io/docs/understanding-tracking-design/)
 //!
 //! ## Example usage
 //!
+//! This simple example shows the process of creating a Tracker, and then building and tracking a [Self-Describing Event](crate::SelfDescribingEvent), using the [`link_click`](https://github.com/snowplow/iglu-central/blob/master/schemas/com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1)
+//! Iglu schema URI, and schema-confirming JSON data.
+//!
 //! ```
-//! use snowplow_tracker::{Snowplow, SelfDescribingJson, SelfDescribingEvent};
+//! use snowplow_tracker::{SelfDescribingEvent, Snowplow, Subject};
 //! use serde_json::json;
 //!
-//! // Initialize a tracker instance given a namespace, application ID, and Snowplow collector URL
-//! let tracker = Snowplow::create_tracker("ns", "app_id", "https://...");
+//! #[tokio::main]
+//! async fn main() {
+//!     // Build a Subject that will be attached to all events sent by this tracker
+//!     let tracker_subject = match Subject::builder().language("en-gb").build() {
+//!         Ok(subject) => subject,
+//!         Err(e) => panic!("Subject could not be built: {e}"), // your error handling here
+//!     };
 //!
-//! // Tracking a self-describing event with a context entity
-//! tracker.track(
-//!     SelfDescribingEvent {
-//!         schema: "iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1".to_string(),
-//!         data: json!({"targetUrl": "http://a-target-url.com"})
-//!     },
-//!     Some(vec![
-//!         SelfDescribingJson::new("iglu:org.schema/WebPage/jsonschema/1-0-0", json!({"keywords": ["tester"]}))
-//!     ])
-//! );
+//!     // Create a tracker
+//!     let tracker = Snowplow::create_tracker("ns", "app_id", "https://example.com", Some(tracker_subject));
+//!
+//!     // Build a Self-Describing Event, with the schema of the event we want to track, along
+//!     // with relevent, schema-conforming, data
+//!     let self_describing_event = match SelfDescribingEvent::builder()
+//!         .schema("iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1")
+//!         .data(json!({"targetUrl": "http://example.com/some-page"}))
+//!         .build()
+//!     {
+//!         Ok(event) => event,
+//!         Err(e) => panic!("SelfDescribingEvent could not be built: {e}"), // your error handling here
+//!     };
+//!
+//!     // Track our Self-Describing Event
+//!     let self_desc_event_uuid = match tracker.track(self_describing_event, None).await {
+//!         Ok(uuid) => uuid,
+//!         Err(e) => panic!("Failed to emit event: {e}"), // your error handling here
+//!     };
+//! }
 //! ```
 
-mod tracker;
 mod emitter;
+mod error;
 mod event;
-mod snowplow;
 mod payload;
+mod snowplow;
+mod subject;
+mod tracker;
 
-pub use snowplow::Snowplow;
-pub use tracker::Tracker;
 pub use emitter::Emitter;
+pub use error::Error;
 pub use event::ScreenViewEvent;
-pub use event::StructuredEvent;
 pub use event::SelfDescribingEvent;
+pub use event::StructuredEvent;
+pub use event::TimingEvent;
 pub use payload::SelfDescribingJson;
+pub use snowplow::Snowplow;
+pub use subject::Subject;
+pub use tracker::Tracker;
