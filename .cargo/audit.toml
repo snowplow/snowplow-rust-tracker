@@ -1,0 +1,13 @@
+[advisories]
+ignore = ["RUSTSEC-2020-0071"]
+# RUSTSEC-2020-0071 is picked up due to the following dependency tree:
+#
+# time 0.1.44
+# └── chrono 0.4.22
+#     └── bollard-stubs 1.41.0
+#         └── testcontainers 0.14.0
+#             └── snowplow_tracker 0.1.0
+#
+# We can safely ignore this though, as `bollard-stubs` is an optional dependency of `testcontainers`,
+# which is only enabled if using the "experiemental" feature (which we aren't):
+# https://github.com/testcontainers/testcontainers-rs/blob/dev/testcontainers/Cargo.toml#L32
