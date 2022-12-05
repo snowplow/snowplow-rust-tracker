@@ -34,6 +34,7 @@ pub enum EventType {
 #[builder(pattern = "owned")]
 #[builder(setter(strip_option))]
 #[builder(build_fn(error = "Error"))]
+#[builder(derive(Clone))]
 /// The final payload that is sent to the collector
 ///
 /// For more information, see the [Snowplow Tracker Protocol](https://docs.snowplow.io/docs/collecting-data/collecting-from-own-applications/snowplow-tracker-protocol)
@@ -42,7 +43,7 @@ pub struct Payload {
     tv: String,
     pub(crate) eid: Uuid,
     dtm: String,
-    stm: String,
+    pub(crate) stm: String,
 
     #[builder(default)]
     e: Option<EventType>,

@@ -9,6 +9,8 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
+use uuid::Uuid;
+
 use crate::error::Error;
 use crate::event_batch::EventBatch;
 use crate::payload::PayloadBuilder;
@@ -30,4 +32,6 @@ pub trait EventStore {
     fn full_batch(&mut self) -> Result<EventBatch, Error>;
     /// Removes and returns the provided number of events from the EventStore as an [EventBatch]
     fn batch_of(&mut self, size: usize) -> Result<EventBatch, Error>;
+    // A method to be called after attempts to send are finished, either successfully or unsuccessfully
+    fn cleanup_after_send_attempt(&mut self, batch_id: Uuid) -> Result<(), Error>;
 }

@@ -20,6 +20,8 @@ use crate::http_client::ReqwestClient;
 use crate::payload::PayloadBuilder;
 use crate::HttpClient;
 
+use super::RetryPolicy;
+
 /// An implementation of the [Emitter] trait that sends batched events to the Snowplow Collector.
 pub struct BatchEmitter {
     /// The URL of your Snowplow [Collector](https://docs.snowplow.io/docs/pipeline-components-and-applications/stream-collector/)
@@ -48,6 +50,8 @@ pub enum EmitterMessage {
 pub struct BatchEmitterBuilder {
     collector_url: Option<String>,
     event_store: Arc<Mutex<dyn EventStore + Send + Sync>>,
+    http_client: Option<Box<dyn HttpClient + Send + Sync>>,
+    retry_policy: RetryPolicy,
 }
 
 impl BatchEmitterBuilder {
@@ -55,6 +59,8 @@ impl BatchEmitterBuilder {
         Self {
             collector_url: None,
             event_store: Arc::new(Mutex::new(InMemoryEventStore::default())),
+            http_client: None,
+            retry_policy: RetryPolicy::MaxRetries(10),
         }
     }
 
@@ -67,6 +73,18 @@ impl BatchEmitterBuilder {
     /// Set the [EventStore] implementation  
     pub fn event_store(mut self, event_store: impl EventStore + Send + Sync + 'static) -> Self {
         self.event_store = Arc::new(Mutex::new(event_store));
+        self
+    }
+
+    /// Set the [HttpClient] implementation
+    pub fn http_client(mut self, http_client: impl HttpClient + Send + Sync + 'static) -> Self {
+        self.http_client = Some(Box::new(http_client));
+        self
+    }
+
+    /// Set the retry policy
+    pub fn retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
+        self.retry_policy = retry_policy;
         self
     }
 
@@ -87,11 +105,23 @@ impl BatchEmitterBuilder {
                     &collector_url,
                     event_store_capacity,
                     self.event_store,
+                    self.http_client
+                        .unwrap_or(ReqwestClient::new(&collector_url)),
+                    self.retry_policy,
                 ))
             }
             None => Err(Error::EmitterError("Collector URL is required".to_string())),
         }
     }
+}
+
+// HTTP status codes that should not be retried
+const DONT_RETRY_STATUS_CODES: [u16; 5] = [400, 401, 403, 410, 422];
+
+/// The batch sent to the Snowplow Collector and the response code
+pub struct SentBatchResponse {
+    pub batch: EventBatch,
+    pub code: u16,
 }
 
 impl BatchEmitter {
@@ -103,22 +133,25 @@ impl BatchEmitter {
         collector_url: &str,
         event_store_capacity: usize,
         event_store: Arc<Mutex<dyn EventStore + Send + Sync>>,
+        http_client: Box<dyn HttpClient + Send + Sync>,
+        retry_policy: RetryPolicy,
     ) -> BatchEmitter {
-        let (tx, mut rx) = tokio::sync::mpsc::channel(event_store_capacity);
+        let (tx, rx) = tokio::sync::mpsc::channel(event_store_capacity);
         let mut emitter = BatchEmitter {
             collector_url: collector_url.to_string(),
-            http_client: ReqwestClient::new(&collector_url),
+            http_client,
             event_store,
             executor_handle: None,
-            tx: tx.clone(),
+            tx,
         };
 
         // Clone http client to be used in the spawned thread
         let client = emitter.http_client.clone();
+        let store = emitter.event_store.clone();
 
         // Spawn the tokio runtime in a separate thread
         emitter.executor_handle = Some(std::thread::spawn(move || {
-            BatchEmitter::start_tokio(client, &mut rx)
+            BatchEmitter::start_tokio(client, rx, store, retry_policy);
         }));
 
         emitter
@@ -130,26 +163,156 @@ impl BatchEmitter {
             collector_url,
             DEFAULT_EVENT_STORE_CAPACITY,
             Arc::new(Mutex::new(InMemoryEventStore::default())),
+            ReqwestClient::new(collector_url),
+            RetryPolicy::MaxRetries(10),
         )
     }
 
     // Static Methods
 
+    fn is_successful_response(code: u16) -> bool {
+        code >= 200 && code < 300
+    }
+
+    // True if the code is outside 200-299 and not in DONT_RETRY_STATUS_CODES
+    fn should_retry(code: u16) -> bool {
+        match Self::is_successful_response(code) {
+            true => false,
+            false => !DONT_RETRY_STATUS_CODES.contains(&code),
+        }
+    }
+
+    fn retry_batch(
+        mut batch: EventBatch,
+        retry_tx: tokio::sync::mpsc::UnboundedSender<EmitterMessage>,
+    ) {
+        batch.update_for_retry();
+
+        let batch_id = batch.id;
+        match retry_tx.send(EmitterMessage::Send(batch)) {
+            Ok(_) => log::debug!("Batch {batch_id} re-queued"),
+            Err(e) => {
+                log::warn!("Failed to re-queue batch {batch_id}: {e}")
+            }
+        }
+    }
+
+    fn run_cleanup(
+        store: Arc<Mutex<dyn EventStore + Send + Sync>>,
+        batch: EventBatch,
+    ) -> Result<(), Error> {
+        let mut store_guard = match store.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                return Err(Error::EmitterError(format!(
+                    "Failed to acquire event store lock: {e}"
+                )))
+            }
+        };
+
+        match store_guard.cleanup_after_send_attempt(batch.id) {
+            Ok(_) => log::debug!("Cleanup run for batch: {}", batch.id),
+            Err(e) => return Err(Error::EmitterError(format!("Failed to cleanup: {e}"))),
+        };
+
+        Ok(())
+    }
+
+    async fn batch_send_task(
+        mut batch: EventBatch,
+        client: Box<dyn HttpClient + Send + Sync>,
+        retry_tx: tokio::sync::mpsc::UnboundedSender<EmitterMessage>,
+        store: Arc<Mutex<dyn EventStore + Send + Sync>>,
+        retry_policy: RetryPolicy,
+    ) {
+        if let Some(delay) = batch.delay {
+            log::debug!("Delaying batch {} for {:?}", batch.id, delay);
+            tokio::time::sleep(delay).await;
+
+            if let Err(e) = batch.update_event_stm() {
+                // If the update fails, we just re-send the batch as-is
+                // Not ideal, but it's better than losing events
+                log::warn!(
+                    "Failed to update stm of events in batch {} for retry: {e}",
+                    batch.id
+                )
+            };
+        };
+
+        let batch_length = batch.events.len();
+        match Self::send_batch(batch, client).await {
+            Ok(resp) => {
+                // We got a response from the collector, but need to check if
+                // it was successful
+
+                match (
+                    Self::should_retry(resp.code),
+                    resp.batch.has_retry(retry_policy),
+                ) {
+                    // An unsuccessful response with retry attempts remaining
+                    (true, true) => Self::retry_batch(resp.batch, retry_tx),
+
+                    // An unsuccessful response with no retry attempts remaining
+                    (true, false) => {
+                        log::warn!("Batch {} failed to send, no retry available", resp.batch.id);
+                        match Self::run_cleanup(store, resp.batch) {
+                            Ok(_) => (),
+                            Err(e) => log::error!("{e}"),
+                        }
+                    }
+
+                    // A successful response
+                    (false, _) => {
+                        log::info!("Sent batch {} of {batch_length} events", resp.batch.id);
+                        match Self::run_cleanup(store, resp.batch) {
+                            Ok(_) => (),
+                            Err(e) => log::error!("{e}"),
+                        }
+                    }
+                }
+            }
+
+            // The request to the collector failed - no response
+            Err(failed_batch) => {
+                if failed_batch.has_retry(retry_policy) {
+                    Self::retry_batch(failed_batch, retry_tx)
+                } else {
+                    log::warn!(
+                        "Batch {} failed to send, no retry available",
+                        failed_batch.id
+                    );
+                    match Self::run_cleanup(store, failed_batch) {
+                        Ok(_) => (),
+                        Err(e) => log::error!("{e}"),
+                    }
+                }
+            }
+        }
+    }
+
     // Sends an EventBatch to the collector
     async fn send_batch(
         batch: EventBatch,
         http_client: Box<dyn HttpClient + Send + Sync>,
-    ) -> Result<(), Error> {
+    ) -> Result<SentBatchResponse, EventBatch> {
         match http_client.post(batch.as_payload()).await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(Error::EmitterError(format!("{e}"))),
+            Ok(code) => {
+                log::debug!("Batch {} sent with status code {}", batch.id, code);
+                Ok(SentBatchResponse { batch, code })
+            }
+            Err(e) => {
+                log::warn!("Failed to send batch {}: {e}, re-queueing...", batch.id);
+                Err(batch)
+            }
         }
     }
 
     // Starts a tokio runtime and runs the emitter loop
     fn start_tokio(
         http_client: Box<dyn HttpClient + Send + Sync>,
-        rx: &mut tokio::sync::mpsc::Receiver<EmitterMessage>,
+        mut rx: tokio::sync::mpsc::Receiver<EmitterMessage>,
+        event_store: Arc<Mutex<dyn EventStore + Send + Sync>>,
+        retry_policy: RetryPolicy,
     ) {
         // Create a new runtime to handle the async tasks
         // Unwrap here as if the runtime fails to start, there is nothing we can do
@@ -163,43 +326,52 @@ impl BatchEmitter {
         rt.block_on(async {
             // The currently running tokio tasks
             let mut tokio_tasks: Vec<_> = Vec::new();
+            let (retry_tx, mut retry_rx) = tokio::sync::mpsc::unbounded_channel();
 
             loop {
-                // `rx.recv().await` will not resolve until either a message is recieved,
+                // `rx.recv().await` will not resolve until either a message is received,
                 // or the channel is closed and there are no more messages, in which case we exit the loop
-                let message = match rx.recv().await {
-                    Some(msg) => {
-                        log::debug!("Received message: {:?}", msg);
-                        msg
-                    }
+
+                // select! is used to check both the `retry_rx` channel and the `rx` channel for new messages
+                let message = match tokio::select! {
+                    // `biased;` is used to ensure that the `retry_rx` channel is checked first, so retries get priority
+                    biased;
+
+                    retry = retry_rx.recv() => retry,
+                    event = rx.recv() => event,
+                } {
+                    Some(message) => message,
                     None => break,
                 };
 
                 match message {
                     EmitterMessage::Send(batch) => {
-                        // Clone HttpClient to be moved into the task
+                        // Clone to move into the task
                         let client = http_client.clone();
+                        let retry_transmitter = retry_tx.clone();
+                        let store = event_store.clone();
 
                         // Spawn a new task to send the batch
                         tokio_tasks.push(tokio::spawn(async move {
-                            let batch_length = batch.events.len();
-                            match Self::send_batch(batch, client).await {
-                                Ok(_) => {
-                                    log::info!("Sent batch of {batch_length} events")
-                                }
-                                Err(e) => log::warn!("Failed to send batch: {e}"),
-                            }
+                            Self::batch_send_task(
+                                batch,
+                                client,
+                                retry_transmitter,
+                                store,
+                                retry_policy,
+                            )
+                            .await
                         }));
                     }
 
                     // On break, the emitter and runtime will be dropped
                     //
-                    // Tokio will cancel any running tasks once the runtime is dropped, meaning any queued batches will be lost,
+                    // Tokio will cancel any running tasks once the runtime is dropped, meaning any queued or retry batches will be lost,
                     // so we attempt to send any remaining batches before exiting
                     EmitterMessage::Close => {
                         let remaining = tokio_tasks.len();
                         for (i, task) in tokio_tasks.iter_mut().enumerate() {
-                            log::debug!("Waiting for task {i}/{remaining} to complete");
+                            log::debug!("Waiting for task {}/{remaining} to complete", i + 1);
                             task.await.unwrap();
                         }
                         break;
@@ -260,22 +432,31 @@ impl Emitter for BatchEmitter {
 
     /// Attempt to send all events currently in the event store
     fn flush(&mut self) -> Result<(), Error> {
-        // Get a batch of all events currently in the event store
-        let batch = match self.event_store.lock() {
-            Ok(mut store) => {
-                let store_length = store.len();
-                store.batch_of(store_length)
-            }
-            Err(e) => return Err(Error::EmitterError(e.to_string())),
-        }?;
+        log::debug!("Flushing event store");
 
-        match self.tx.try_send(EmitterMessage::Send(batch)) {
-            Ok(_) => {
-                log::debug!("Flushing event store");
-                Ok(())
+        // Get a lock on the event store
+        let mut store_lock = match self.event_store.lock() {
+            Ok(store) => store,
+            Err(e) => return Err(Error::EmitterError(e.to_string())),
+        };
+
+        // Send batches until the event store doesn't have enough events to fill a batch
+        while let Ok(batch) = store_lock.full_batch() {
+            if let Err(e) = self.tx.try_send(EmitterMessage::Send(batch)) {
+                return Err(Error::EmitterError(e.to_string()));
             }
-            Err(e) => Err(Error::EmitterError(e.to_string())),
         }
+
+        // Create a batch of the remaining events and send it
+        let remaining_events = store_lock.len();
+        let final_batch = store_lock.batch_of(remaining_events)?;
+        if let Err(e) = self.tx.try_send(EmitterMessage::Send(final_batch)) {
+            return Err(Error::EmitterError(e.to_string()));
+        };
+
+        log::debug!("Finished flushing event store");
+
+        Ok(())
     }
 
     /// Shut down and drop the emitter
@@ -328,5 +509,23 @@ mod test {
         assert_eq!(emitter.event_store.lock().unwrap().len(), 0);
 
         emitter.close().unwrap();
+    }
+
+    #[test]
+    fn should_retry() {
+        let below_200 = (0..=199).collect::<Vec<_>>();
+        let between_300_and_599 = (300..=599)
+            .into_iter()
+            .filter(|code| !DONT_RETRY_STATUS_CODES.contains(code))
+            .collect::<Vec<_>>();
+
+        let should_retry_codes = [below_200, between_300_and_599].concat();
+
+        for code in 0..=599 {
+            assert_eq!(
+                BatchEmitter::should_retry(code),
+                should_retry_codes.contains(&code)
+            )
+        }
     }
 }

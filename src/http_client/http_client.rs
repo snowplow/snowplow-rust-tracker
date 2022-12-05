@@ -22,7 +22,7 @@ use crate::Error;
 #[async_trait]
 pub trait HttpClient {
     /// Send a [SelfDescribingJson] to the collector via POST
-    async fn post(&self, payload: SelfDescribingJson) -> Result<(), Error>;
+    async fn post(&self, payload: SelfDescribingJson) -> Result<u16, Error>;
     /// Duplicate the HttpClient
     fn clone(&self) -> Box<dyn HttpClient + Send + Sync>;
 }

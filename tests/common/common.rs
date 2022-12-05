@@ -29,14 +29,19 @@ pub fn setup(docker: &Cli) -> (Container<Micro>, String) {
 }
 
 pub async fn wait_for_events(micro_url: &str, page: &str, number: usize) {
+    let timeout = std::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
+        if timeout < std::time::Instant::now() {
+            panic!("Timeout waiting for events");
+        }
+
         let response = micro_endpoint(micro_url, page).await;
         match response.as_array() {
             Some(events) => {
                 if events.len() >= number {
                     break;
                 } else {
-                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 }
             }
             _ => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
