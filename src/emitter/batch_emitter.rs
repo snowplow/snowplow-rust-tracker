@@ -168,7 +168,10 @@ impl BatchEmitter {
                 // `rx.recv().await` will not resolve until either a message is recieved,
                 // or the channel is closed and there are no more messages, in which case we exit the loop
                 let message = match rx.recv().await {
-                    Some(msg) => msg,
+                    Some(msg) => {
+                        log::debug!("Received message: {:?}", msg);
+                        msg
+                    }
                     None => break,
                 };
 
@@ -179,10 +182,12 @@ impl BatchEmitter {
 
                         // Spawn a new task to send the batch
                         tokio_tasks.push(tokio::spawn(async move {
-                            // TODO: Change println to logging
+                            let batch_length = batch.events.len();
                             match Self::send_batch(batch, client).await {
-                                Ok(_) => println!("Batch sent"),
-                                Err(e) => println!("Error sending batch: {e}"),
+                                Ok(_) => {
+                                    log::info!("Sent batch of {batch_length} events")
+                                }
+                                Err(e) => log::warn!("Failed to send batch: {e}"),
                             }
                         }));
                     }
@@ -192,7 +197,9 @@ impl BatchEmitter {
                     // Tokio will cancel any running tasks once the runtime is dropped, meaning any queued batches will be lost,
                     // so we attempt to send any remaining batches before exiting
                     EmitterMessage::Close => {
-                        for task in tokio_tasks {
+                        let remaining = tokio_tasks.len();
+                        for (i, task) in tokio_tasks.iter_mut().enumerate() {
+                            log::debug!("Waiting for task {i}/{remaining} to complete");
                             task.await.unwrap();
                         }
                         break;
@@ -213,7 +220,9 @@ impl Drop for BatchEmitter {
         // It's likely that the thread has already finished once the emitter loop has exited
         if let Some(handle) = self.executor_handle.take() {
             handle.join().unwrap();
+            log::debug!("BatchEmitter thread joined");
         }
+        log::debug!("BatchEmitter dropped");
     }
 }
 
@@ -224,7 +233,13 @@ impl Emitter for BatchEmitter {
     fn add(&mut self, payload: PayloadBuilder) -> Result<(), Error> {
         let batch = match self.event_store.lock() {
             Ok(mut store) => {
-                store.add(payload)?;
+                match store.add(payload) {
+                    Ok(_) => log::debug!("Added event to event store"),
+                    Err(e) => {
+                        log::error!("Failed to add event to event store: {e}");
+                        return Err(e);
+                    }
+                }
                 // If the event store has enough events to fill a batch, return the batch
                 store.full_batch()
             }
@@ -255,7 +270,10 @@ impl Emitter for BatchEmitter {
         }?;
 
         match self.tx.try_send(EmitterMessage::Send(batch)) {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                log::debug!("Flushing event store");
+                Ok(())
+            }
             Err(e) => Err(Error::EmitterError(e.to_string())),
         }
     }
@@ -265,7 +283,10 @@ impl Emitter for BatchEmitter {
     /// This will cancel any running tasks and may result in events being lost
     fn close(&mut self) -> Result<(), Error> {
         match self.tx.try_send(EmitterMessage::Close) {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                log::debug!("Closing emitter");
+                Ok(())
+            }
             Err(e) => Err(Error::EmitterError(e.to_string())),
         }
     }

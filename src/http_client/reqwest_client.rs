@@ -39,12 +39,16 @@ impl HttpClient for ReqwestClient {
         match self.client.post(&collector_url).json(&payload).send().await {
             Ok(resp) => match resp.status().is_success() {
                 true => Ok(()),
-                false => Err(Error::EmitterError(format!(
-                    "Error sending request: {}",
-                    resp.status()
-                ))),
+                false => {
+                    log::error!("POST request failed with code: {}", resp.status());
+
+                    Err(Error::EmitterError(format!(
+                        "POST request failed with code: {}",
+                        resp.status()
+                    )))
+                }
             },
-            Err(e) => Err(Error::EmitterError(e.to_string())),
+            Err(e) => Err(Error::EmitterError(format!("POST request failed: {e}"))),
         }
     }
 
