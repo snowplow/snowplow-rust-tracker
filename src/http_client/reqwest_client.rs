@@ -33,21 +33,11 @@ impl ReqwestClient {
 
 #[async_trait]
 impl HttpClient for ReqwestClient {
-    async fn post(&self, payload: SelfDescribingJson) -> Result<(), Error> {
+    async fn post(&self, payload: SelfDescribingJson) -> Result<u16, Error> {
         let collector_url = format!("{}/{}", self.collector_url, POST_PATH);
 
         match self.client.post(&collector_url).json(&payload).send().await {
-            Ok(resp) => match resp.status().is_success() {
-                true => Ok(()),
-                false => {
-                    log::error!("POST request failed with code: {}", resp.status());
-
-                    Err(Error::EmitterError(format!(
-                        "POST request failed with code: {}",
-                        resp.status()
-                    )))
-                }
-            },
+            Ok(resp) => Ok(resp.status().as_u16()),
             Err(e) => Err(Error::EmitterError(format!("POST request failed: {e}"))),
         }
     }

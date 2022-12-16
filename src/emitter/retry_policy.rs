@@ -9,10 +9,15 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
-mod batch_emitter;
-mod emitter;
-mod retry_policy;
-
-pub use batch_emitter::BatchEmitter;
-pub use emitter::Emitter;
-pub use retry_policy::RetryPolicy;
+#[derive(Debug, Copy, Clone)]
+/// Retry policy for the [BatchEmitter](crate::emitter::BatchEmitter).
+///
+/// This can be used to configure how an the emitter should handle failed requests.
+pub enum RetryPolicy {
+    /// Retry sending events forever
+    RetryForever,
+    /// Retry sending events until the maximum number of retries is reached
+    MaxRetries(u32),
+    /// Do not retry sending events
+    NoRetry,
+}

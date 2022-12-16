@@ -9,6 +9,8 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
+use uuid::Uuid;
+
 use crate::event_batch::EventBatch;
 use crate::event_store::EventStore;
 use crate::payload::{Payload, PayloadBuilder};
@@ -88,9 +90,13 @@ impl InMemoryEventStore {
             .map(|e| e.finalise_payload())
             .collect::<Result<Vec<Payload>, Error>>()?;
 
-        Ok(EventBatch {
-            events: events_to_send,
-        })
+        // Take the first event's `eid` and use it for the batch id
+        let first_event_id = match events_to_send.first() {
+            Some(payload) => payload.eid.clone(),
+            None => return Err(Error::EventStoreError("No events to send".to_string())),
+        };
+
+        Ok(EventBatch::new(first_event_id, events_to_send))
     }
 }
 
@@ -128,6 +134,11 @@ impl EventStore for InMemoryEventStore {
 
     fn batch_size(&self) -> usize {
         self.batch_size
+    }
+
+    // InMemoryEventStore doesn't need to do anything to clean up after a send attempt
+    fn cleanup_after_send_attempt(&mut self, batch_id: Uuid) -> Result<(), Error> {
+        Ok(drop(batch_id))
     }
 }
 

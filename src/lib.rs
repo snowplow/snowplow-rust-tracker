@@ -70,7 +70,7 @@ mod snowplow;
 mod subject;
 mod tracker;
 
-pub use emitter::{BatchEmitter, Emitter};
+pub use emitter::{BatchEmitter, Emitter, RetryPolicy};
 pub use error::Error;
 pub use event::{ScreenViewEvent, SelfDescribingEvent, StructuredEvent, TimingEvent};
 pub use event_store::{EventStore, InMemoryEventStore};
