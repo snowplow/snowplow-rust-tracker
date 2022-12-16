@@ -59,7 +59,7 @@ impl Tracker {
             subject: subject.unwrap_or(Subject::default()),
             config: TrackerConfig {
                 platform: "pc".to_string(),
-                version: "rust-0.1.0".to_string(),
+                version: format!("rust-{}", env!("CARGO_PKG_VERSION")),
                 encode_base_64: false,
             },
         }
@@ -201,7 +201,10 @@ mod tests {
         assert_eq!(tracker.emitter.collector_url(), "http://example.com/");
         assert_eq!(tracker.subject.user_id, Some("user_1".to_string()));
         assert_eq!(tracker.config.platform, "pc".to_string());
-        assert_eq!(tracker.config.version, "rust-0.1.0".to_string());
+        assert_eq!(
+            tracker.config.version,
+            format!("rust-{}", env!("CARGO_PKG_VERSION"))
+        );
         assert_eq!(tracker.config.encode_base_64, false);
 
         tracker.close_emitter().unwrap();

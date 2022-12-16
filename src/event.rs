@@ -392,7 +392,7 @@ mod tests {
     fn payload_builder() -> PayloadBuilder {
         Payload::builder()
             .p("platform".to_string())
-            .tv("0.1.0".to_string())
+            .tv(format!("rust-{}", env!("CARGO_PKG_VERSION")))
             .eid(Uuid::new_v4())
             .dtm("1".to_string())
             .stm("1".to_string())
