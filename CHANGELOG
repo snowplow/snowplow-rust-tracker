@@ -1,3 +1,11 @@
+Version 0.2.0 (2022-12-19)
+--------------------------
+Remove hard-coded version number (#32)
+Add Retry (#30)
+Add Logging (#28)
+Add Cargo Audit (#26)
+Add Event Store (#24)
+
 Version 0.1.0 (2022-10-21)
 --------------------------
 Improve testing (#8)

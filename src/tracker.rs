@@ -9,15 +9,15 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
-use crate::emitter::Emitter;
-use crate::error::Error;
-use crate::event::EventBuildable;
-use crate::payload::{ContextData, Payload, SelfDescribingJson};
-use crate::subject::Subject;
-
 use std::time::UNIX_EPOCH;
 use std::time::{SystemTime, SystemTimeError};
 use uuid::Uuid;
+
+use crate::emitter::Emitter;
+use crate::error::Error;
+use crate::event::PayloadAddable;
+use crate::payload::{ContextData, Payload, SelfDescribingJson};
+use crate::subject::Subject;
 
 pub struct TrackerConfig {
     pub platform: String,
@@ -32,7 +32,7 @@ pub struct Tracker {
     /// Application ID
     app_id: String,
     /// Emitter used to send events to the Collector
-    emitter: Emitter,
+    emitter: Box<dyn Emitter>,
     /// Additional tracker config
     config: TrackerConfig,
     /// The [Subject] that will be applied to all events
@@ -45,13 +45,13 @@ impl Tracker {
     pub fn new(
         namespace: &str,
         app_id: &str,
-        emitter: Emitter,
+        emitter: impl Emitter + 'static,
         subject: Option<Subject>,
     ) -> Tracker {
         Tracker {
             namespace: namespace.to_string(),
             app_id: app_id.to_string(),
-            emitter,
+            emitter: Box::new(emitter),
             // By providing a default subject, we can avoid having to unwrap the subject
             //
             // The default for Subject provides `None` for all fields, so will be skipped
@@ -59,7 +59,7 @@ impl Tracker {
             subject: subject.unwrap_or(Subject::default()),
             config: TrackerConfig {
                 platform: "pc".to_string(),
-                version: "rust-0.1.0".to_string(),
+                version: format!("rust-{}", env!("CARGO_PKG_VERSION")),
                 encode_base_64: false,
             },
         }
@@ -73,12 +73,22 @@ impl Tracker {
         &self.app_id
     }
 
-    pub fn emitter(&self) -> &Emitter {
+    pub fn emitter(&self) -> &Box<dyn Emitter> {
         &self.emitter
     }
 
     pub fn subject(&self) -> &Subject {
         &self.subject
+    }
+
+    /// Attempts to send all events in the event store to the collector
+    pub fn flush(&mut self) -> Result<(), Error> {
+        self.emitter.flush()
+    }
+
+    /// Safely shuts down the Emitter
+    pub fn close_emitter(&mut self) -> Result<(), Error> {
+        self.emitter.close()
     }
 
     /// Provides mutable access to the `subject` field
@@ -108,6 +118,12 @@ impl Tracker {
     /// // We must dereference here to assign to the mutably borrowed value
     /// *tracker.subject_mut() = new_tracker_subject;
     ///
+    /// // Close the tracker emitter
+    /// match tracker.close_emitter() {
+    ///     Ok(_) => (),
+    ///     Err(e) => panic!("Emitter could not be closed: {e}"), // your error handling here
+    /// };
+    ///
     /// assert_eq!(tracker.subject().user_id, Some("user_2".to_string()));
     /// assert_eq!(tracker.subject().language, None);
     /// ```
@@ -116,9 +132,9 @@ impl Tracker {
     }
 
     /// Tracks a Snowplow event with optional context entities and sends it to the Snowplow collector.
-    pub async fn track(
-        &self,
-        event: impl EventBuildable,
+    pub fn track(
+        &mut self,
+        event: impl PayloadAddable,
         context: Option<Vec<SelfDescribingJson>>,
     ) -> Result<Uuid, Error> {
         let since_the_epoch =
@@ -135,11 +151,10 @@ impl Tracker {
             .tv(self.config.version.clone())
             .eid(event_id.clone())
             .dtm(since_the_epoch.as_millis().to_string())
-            .stm(since_the_epoch.as_millis().to_string())
             .aid(self.app_id.clone());
 
         if let Some(context) = context {
-            payload_builder = payload_builder.co(ContextData::new(context.to_vec()));
+            payload_builder = payload_builder.co(ContextData::new(context));
         }
 
         // Event Subject gets priority over Tracker Subject
@@ -148,21 +163,33 @@ impl Tracker {
                 payload_builder.subject(event_subject.clone().merge(self.subject.clone()));
         }
 
-        let payload = event.build_payload(payload_builder)?;
-        self.emitter.add(payload).await.map(|_| event_id)
+        payload_builder = event.add_to_payload(payload_builder);
+
+        let event_id = match payload_builder.eid {
+            Some(eid) => eid,
+            None => return Err(Error::BuilderError("Event ID not set".to_string())),
+        };
+
+        self.emitter.add(payload_builder)?;
+        Ok(event_id)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::BatchEmitter;
+
     use super::*;
 
     #[test]
     fn create_new_tracker() {
-        let tracker = Tracker::new(
+        let mut tracker = Tracker::new(
             "test namespace",
             "test app id",
-            Emitter::new("http://example.com/"),
+            BatchEmitter::builder()
+                .collector_url("http://example.com/")
+                .build()
+                .unwrap(),
             Some(Subject {
                 user_id: Some("user_1".to_string()),
                 ..Subject::default()
@@ -171,11 +198,16 @@ mod tests {
 
         assert_eq!(tracker.namespace, "test namespace");
         assert_eq!(tracker.app_id, "test app id");
-        assert_eq!(tracker.emitter.collector_url, "http://example.com/");
-        assert_eq!(tracker.subject.user_id.unwrap(), "user_1".to_string());
+        assert_eq!(tracker.emitter.collector_url(), "http://example.com/");
+        assert_eq!(tracker.subject.user_id, Some("user_1".to_string()));
         assert_eq!(tracker.config.platform, "pc".to_string());
-        assert_eq!(tracker.config.version, "rust-0.1.0".to_string());
+        assert_eq!(
+            tracker.config.version,
+            format!("rust-{}", env!("CARGO_PKG_VERSION"))
+        );
         assert_eq!(tracker.config.encode_base_64, false);
+
+        tracker.close_emitter().unwrap();
     }
 
     #[test]
@@ -183,7 +215,10 @@ mod tests {
         let mut tracker = Tracker::new(
             "test namespace",
             "test app id",
-            Emitter::new("http://example.com/"),
+            BatchEmitter::builder()
+                .collector_url("http://example.com/")
+                .build()
+                .unwrap(),
             Some(Subject::builder().user_id("user_1").build().unwrap()),
         );
         assert_eq!(tracker.subject.user_id, Some("user_1".to_string()));
@@ -191,6 +226,8 @@ mod tests {
         *tracker.subject_mut() = Subject::builder().user_id("user_2").build().unwrap();
 
         assert_eq!(tracker.subject.user_id, Some("user_2".to_string()));
+
+        tracker.close_emitter().unwrap();
     }
 
     #[test]
@@ -198,7 +235,10 @@ mod tests {
         let mut tracker = Tracker::new(
             "test namespace",
             "test app id",
-            Emitter::new("http://example.com/"),
+            BatchEmitter::builder()
+                .collector_url("http://example.com/")
+                .build()
+                .unwrap(),
             Some(
                 Subject::builder()
                     .user_id("user_1")
@@ -222,5 +262,7 @@ mod tests {
             tracker.subject.ip_address,
             Some("999.999.999.999".to_string())
         );
+
+        tracker.close_emitter().unwrap();
     }
 }

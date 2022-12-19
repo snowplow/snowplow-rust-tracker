@@ -1,7 +1,7 @@
 [package]
 name = "snowplow_tracker"
 description = "A package for tracking Snowplow events in Rust apps"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
 homepage = "https://snowplow.io"
@@ -15,6 +15,9 @@ serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
 uuid = { version = "1.1.2", features = ["v4", "serde"] }
 derive_builder = "0.11.2"
+async-trait = "0.1.58"
+log = "0.4.17"
+rand = "0.8.5"
 
 [dev-dependencies]
 testcontainers = "0.14.0"

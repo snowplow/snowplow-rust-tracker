@@ -1,0 +1,24 @@
+# This workflow respects the configuration for `cargo audit` in `.cargo/audit.toml`
+name: Security Audit
+
+on:
+  # Run on push if Cargo toml/lock has changed
+  push:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+
+  # Run every day at 00:00
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

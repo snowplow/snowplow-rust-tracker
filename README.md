@@ -24,7 +24,7 @@ Add the `snowplow_tracker` as a dependency in `Cargo.toml` inside your Rust appl
 
 ```yml
 [dependencies]
-snowplow_tracker = "0.1"
+snowplow_tracker = "0.2.0"
 ```
 
 Use the package APIs in your code:
@@ -64,7 +64,7 @@ let screen_view_event = match ScreenViewEvent::builder()
     Err(e) => panic!("ScreenViewEvent could not be built: {e}"), // your error handling here
 };
 
-let screen_view_event_id = match tracker.track(screen_view_event, None).await {
+let screen_view_event_id = match tracker.track(screen_view_event, None) {
     Ok(uuid) => uuid,
     Err(e) => panic!("Failed to emit event: {e}"), // your error handling here
 };
@@ -84,7 +84,7 @@ let event_context = Some(vec![SelfDescribingJson::new(
     json!({"keywords": ["tester"]}),
 )]);
 
-let self_desc_event_id = match tracker.track(self_describing_event, event_context).await {
+let self_desc_event_id = match tracker.track(self_describing_event, event_context) {
     Ok(uuid) => uuid,
     Err(e) => panic!("Failed to emit event: {e}"), // your error handling here
 };
@@ -103,10 +103,14 @@ let structured_event = match StructuredEvent::builder()
     Err(e) => panic!("StructuredEvent could not be built: {e}"), // your error handling here
 };
 
-let struct_event_id = match tracker.track(structured_event, None).await {
+let struct_event_id = match tracker.track(structured_event, None) {
     Ok(uuid) => uuid,
     Err(e) => panic!("Failed to emit event: {e}"), // your error handling here
 };
+
+
+// Close the emitter when done
+tracker.close_emitter()
 ```
 
 ## Find Out More

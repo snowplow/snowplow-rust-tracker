@@ -9,22 +9,15 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
 
-use crate::emitter::BatchEmitter;
-use crate::subject::Subject;
-use crate::tracker::Tracker;
-
-/// Main interface for the package, used to initialize trackers.
-pub struct Snowplow;
-
-impl Snowplow {
-    /// Creates a new [Tracker] instance
-    pub fn create_tracker(
-        namespace: &str,
-        app_id: &str,
-        collector_url: &str,
-        subject: Option<Subject>,
-    ) -> Tracker {
-        let emitter = BatchEmitter::new(collector_url);
-        Tracker::new(namespace, app_id, emitter, subject)
-    }
+#[derive(Debug, Copy, Clone)]
+/// Retry policy for the [BatchEmitter](crate::emitter::BatchEmitter).
+///
+/// This can be used to configure how an the emitter should handle failed requests.
+pub enum RetryPolicy {
+    /// Retry sending events forever
+    RetryForever,
+    /// Retry sending events until the maximum number of retries is reached
+    MaxRetries(u32),
+    /// Do not retry sending events
+    NoRetry,
 }

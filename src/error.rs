@@ -17,8 +17,10 @@ use std::fmt::{Display, Formatter, Result};
 pub enum Error {
     /// An error occurred when trying to build an event or payload
     BuilderError(String),
-    /// An error occurred when trying to emit an event
+    /// An error occurred in the emitter
     EmitterError(String),
+    /// An error occurred in the event store
+    EventStoreError(String),
 }
 
 impl Display for Error {
@@ -26,6 +28,7 @@ impl Display for Error {
         match self {
             Error::BuilderError(builder_err) => write!(f, "{}", builder_err),
             Error::EmitterError(emitter_err) => write!(f, "{}", emitter_err),
+            Error::EventStoreError(event_store_err) => write!(f, "{}", event_store_err),
         }
     }
 }
