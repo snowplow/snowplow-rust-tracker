@@ -42,6 +42,8 @@ pub struct SelfDescribingEvent {
     /// This data must conform to the schema specified in the schema argument, or the event will fail validation and land in bad rows.
     pub data: Value,
 
+    pub ttm: String,
+
     /// The [Subject] of the event.
     #[builder(default)]
     #[serde(skip_serializing)]
@@ -62,6 +64,7 @@ impl PayloadAddable for SelfDescribingEvent {
                 &self.schema,
                 self.data,
             )))
+            .ttm(self.ttm)
     }
 
     fn subject(&self) -> &Option<Subject> {
@@ -160,6 +163,8 @@ pub struct ScreenViewEvent {
     /// The id (UUID v4) of screen that was viewed.
     pub id: Uuid,
 
+    pub ttm: String,
+
     /// The type of screen that was viewed.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -204,6 +209,7 @@ impl PayloadAddable for ScreenViewEvent {
             schema: "iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0".to_string(),
             data: json!(self),
             subject: self.subject,
+            ttm: self.ttm
         };
 
         event.add_to_payload(payload_builder)
@@ -230,6 +236,9 @@ pub struct TimingEvent {
     /// The number of milliseconds in elapsed time
     pub timing: i64,
 
+    pub ttm: String,
+
+
     /// An optional description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
@@ -252,6 +261,7 @@ impl PayloadAddable for TimingEvent {
             schema: "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
             data: json!(self),
             subject: self.subject,
+            ttm: self.ttm
         };
 
         event.add_to_payload(payload_builder)
@@ -289,6 +299,7 @@ mod tests {
                 user_id: Some("user_1".to_string()),
                 ..Subject::default()
             })
+            .ttm("ttm".to_string())
             .build()
             .unwrap();
 
@@ -343,6 +354,7 @@ mod tests {
                 user_id: Some("user_1".to_string()),
                 ..Subject::default()
             })
+            .ttm("ttm".to_string())
             .build()
             .unwrap();
         let payload_builder = payload_builder();
@@ -368,6 +380,7 @@ mod tests {
                 user_id: Some("user_1".to_string()),
                 ..Subject::default()
             })
+            .ttm("ttm".to_string())
             .build()
             .unwrap();
         let payload_builder = payload_builder();
@@ -381,7 +394,8 @@ mod tests {
                 "category": "fetch_resource",
                 "variable": "map_loaded",
                 "timing": 1423_i64,
-                "label": "Time to fetch map resource"
+                "label": "Time to fetch map resource",
+                "ttm": "ttm"
             }),
         };
         let data = payload.ue_pr.unwrap().data;
@@ -396,6 +410,7 @@ mod tests {
             .eid(Uuid::new_v4())
             .dtm("1".to_string())
             .stm("1".to_string())
+            .ttm("ttm".to_string())
             .aid("test".to_string())
     }
 

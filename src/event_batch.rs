@@ -110,6 +110,7 @@ mod tests {
                     .dtm("dtm".to_string())
                     .stm("stm".to_string())
                     .aid("aid".to_string())
+                    .ttm("ttm".to_string())
             })
             .collect()
     }

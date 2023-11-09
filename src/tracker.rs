@@ -151,6 +151,7 @@ impl Tracker {
             .tv(self.config.version.clone())
             .eid(event_id.clone())
             .dtm(since_the_epoch.as_millis().to_string())
+            .ttm("ttm".to_string())
             .aid(self.app_id.clone());
 
         if let Some(context) = context {

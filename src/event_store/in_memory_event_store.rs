@@ -155,6 +155,7 @@ mod test {
                     .eid(uuid::Uuid::new_v4())
                     .dtm("dtm".to_string())
                     .stm("stm".to_string())
+                    .ttm("ttm".to_string())
                     .aid("aid".to_string())
             })
             .collect()

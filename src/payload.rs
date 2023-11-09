@@ -49,6 +49,8 @@ pub struct Payload {
     e: Option<EventType>,
     aid: String,
 
+    ttm: String,
+
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) ue_pr: Option<SelfDescribingEventData>,
