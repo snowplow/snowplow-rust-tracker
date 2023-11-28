@@ -39,6 +39,7 @@
 //!     let self_describing_event = match SelfDescribingEvent::builder()
 //!         .schema("iglu:com.snowplowanalytics.snowplow/link_click/jsonschema/1-0-1")
 //!         .data(json!({"targetUrl": "http://example.com/some-page"}))
+//!         .ttm("1701147392697")
 //!         .build()
 //!     {
 //!         Ok(event) => event,

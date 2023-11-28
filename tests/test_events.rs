@@ -38,6 +38,7 @@ async fn track_valid_event_to_good() {
         .id(Uuid::new_v4())
         .name("a screen view")
         .previous_name("previous screen")
+        .ttm("1701147392697")
         .build()
         .unwrap();
 
@@ -77,6 +78,7 @@ async fn track_event_with_subject() {
         .name("a screen view")
         .previous_name("previous screen")
         .subject(subject)
+        .ttm("1701147392697")
         .build()
         .unwrap();
 
@@ -117,6 +119,7 @@ async fn track_event_with_partial_subject() {
         .name("a screen view")
         .previous_name("previous screen")
         .subject(subject)
+        .ttm("1701147392697")
         .build()
         .unwrap();
 
@@ -153,6 +156,7 @@ async fn event_subject_overrides_tracker_subject() {
     let screenview_event = ScreenViewEvent::builder()
         .id(Uuid::new_v4())
         .name("a screen view")
+        .ttm("1701147392697")
         .subject(subject)
         .build()
         .unwrap();
@@ -182,12 +186,13 @@ async fn track_screen_view_event() {
         .previous_type("carousel")
         .previous_id(Uuid::new_v4())
         .transition_type("navigation")
+        .ttm("1701147392697")
         .build()
         .unwrap();
 
     let expected_event = json!({
         "schema": "iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0".to_string(),
-        "data" : serde_json::to_value(&screenview_event).unwrap(),
+        "data" : serde_json::to_value(&screenview_event.clone().into_data()).unwrap(),
     });
 
     tracker.track(screenview_event, None).unwrap();
@@ -243,6 +248,7 @@ async fn track_self_describing_event() {
             SelfDescribingEvent::builder()
                 .schema("iglu:com.snowplowanalytics.snowplow/screen_view/jsonschema/1-0-0")
                 .data(json!({"name": "test", "id": "something else"}))
+                .ttm("1701147392697")
                 .build()
                 .unwrap(),
             Some(vec![SelfDescribingJson::new(
@@ -302,12 +308,13 @@ async fn track_timing_event() {
         .variable("map_loaded")
         .timing(1423)
         .label("Time to fetch map resource")
+        .ttm("1701147392697")
         .build()
         .unwrap();
 
     let expected_event = json!({
         "schema": "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
-        "data" : serde_json::to_value(&timing_event).unwrap(),
+        "data" : serde_json::to_value(&timing_event.clone().into_data()).unwrap(),
     });
 
     tracker.track(timing_event, None).unwrap();
@@ -336,12 +343,13 @@ async fn track_many_events() {
             .variable("map_loaded")
             .timing(i)
             .label("Time to fetch map resource")
+            .ttm("1701147392697")
             .build()
             .unwrap();
 
         let expected_event = json!({
             "schema": "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
-            "data" : serde_json::to_value(&event).unwrap(),
+            "data" : serde_json::to_value(&event.clone().into_data()).unwrap(),
         });
 
         tracker.track(event, None).unwrap();
