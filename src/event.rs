@@ -142,6 +142,7 @@ impl PayloadAddable for StructuredEvent {
         payload_builder
             .e(EventType::StructuredEvent)
             .structured_event(self)
+            .ttm("1701147392697".to_string())
     }
 
     fn subject(&self) -> &Option<Subject> {
@@ -156,6 +157,7 @@ impl PayloadAddable for StructuredEvent {
 #[serde(rename_all = "camelCase")]
 #[builder(setter(into, strip_option))]
 #[builder(build_fn(error = "Error"))]
+#[derive(Clone)]
 pub struct ScreenViewEvent {
     /// The name of the screen viewed.
     pub name: String,
@@ -197,9 +199,65 @@ pub struct ScreenViewEvent {
     pub subject: Option<Subject>,
 }
 
+#[derive(Serialize, Deserialize, Builder)]
+#[serde(rename_all = "camelCase")]
+#[builder(setter(into, strip_option))]
+#[builder(build_fn(error = "Error"))]
+pub struct ScreenViewEventData {
+    /// The name of the screen viewed.
+    pub name: String,
+
+    /// The id (UUID v4) of screen that was viewed.
+    pub id: Uuid,
+
+    /// The type of screen that was viewed.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename(serialize = "type"))]
+    pub screen_type: Option<String>,
+
+    /// The name of the previous screen that was viewed.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_name: Option<String>,
+
+    /// The type of screen that was viewed.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_type: Option<String>,
+
+    /// The id (UUID v4) of the previous screen that was viewed.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_id: Option<Uuid>,
+
+    /// The type of transition that led to the screen being viewed.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transition_type: Option<String>,
+
+    /// The [Subject] of the event.
+    #[builder(default)]
+    #[serde(skip_serializing)]
+    pub subject: Option<Subject>,
+}
+
 impl ScreenViewEvent {
     pub fn builder() -> ScreenViewEventBuilder {
         ScreenViewEventBuilder::default()
+    }
+
+    pub fn into_data(self) -> ScreenViewEventData {
+        ScreenViewEventData {
+            name: self.name,
+            id: self.id,
+            screen_type: self.screen_type,
+            previous_name: self.previous_name,
+            previous_type: self.previous_type,
+            previous_id: self.previous_id,
+            transition_type: self.transition_type,
+            subject: self.subject,
+        }
     }
 }
 
@@ -207,9 +265,9 @@ impl PayloadAddable for ScreenViewEvent {
     fn add_to_payload(self, payload_builder: PayloadBuilder) -> PayloadBuilder {
         let event = SelfDescribingEvent {
             schema: "iglu:com.snowplowanalytics.mobile/screen_view/jsonschema/1-0-0".to_string(),
-            data: json!(self),
+            data: json!(self.clone().into_data()),
             subject: self.subject,
-            ttm: self.ttm
+            ttm: self.ttm,
         };
 
         event.add_to_payload(payload_builder)
@@ -226,6 +284,7 @@ impl PayloadAddable for ScreenViewEvent {
 #[derive(Serialize, Deserialize, Builder, Default)]
 #[builder(setter(into, strip_option), default)]
 #[builder(build_fn(error = "Error"))]
+#[derive(Clone)]
 pub struct TimingEvent {
     /// The category of the timed event
     pub category: String,
@@ -238,6 +297,28 @@ pub struct TimingEvent {
 
     pub ttm: String,
 
+    /// An optional description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+
+    /// The [Subject] of the event.
+    #[builder(default)]
+    #[serde(skip_serializing)]
+    pub subject: Option<Subject>,
+}
+
+#[derive(Serialize, Deserialize, Builder, Default)]
+#[builder(setter(into, strip_option), default)]
+#[builder(build_fn(error = "Error"))]
+pub struct TimingEventData {
+    /// The category of the timed event
+    pub category: String,
+
+    /// What is being measured e.g. "load resource"
+    pub variable: String,
+
+    /// The number of milliseconds in elapsed time
+    pub timing: i64,
 
     /// An optional description
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -253,15 +334,25 @@ impl TimingEvent {
     pub fn builder() -> TimingEventBuilder {
         TimingEventBuilder::default()
     }
+
+    pub fn into_data(self) -> TimingEventData {
+        TimingEventData {
+            category: self.category,
+            variable: self.variable,
+            timing: self.timing,
+            label: self.label,
+            subject: self.subject,
+        }
+    }
 }
 
 impl PayloadAddable for TimingEvent {
     fn add_to_payload(self, payload_builder: PayloadBuilder) -> PayloadBuilder {
         let event = SelfDescribingEvent {
             schema: "iglu:com.snowplowanalytics.snowplow/timing/jsonschema/1-0-0".to_string(),
-            data: json!(self),
+            data: json!(self.clone().into_data()),
             subject: self.subject,
-            ttm: self.ttm
+            ttm: self.ttm,
         };
 
         event.add_to_payload(payload_builder)
@@ -380,7 +471,7 @@ mod tests {
                 user_id: Some("user_1".to_string()),
                 ..Subject::default()
             })
-            .ttm("ttm".to_string())
+            .ttm("1701147392697".to_string())
             .build()
             .unwrap();
         let payload_builder = payload_builder();
@@ -395,7 +486,6 @@ mod tests {
                 "variable": "map_loaded",
                 "timing": 1423_i64,
                 "label": "Time to fetch map resource",
-                "ttm": "ttm"
             }),
         };
         let data = payload.ue_pr.unwrap().data;

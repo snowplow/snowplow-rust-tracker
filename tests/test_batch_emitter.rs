@@ -29,6 +29,7 @@ async fn send_batches() {
                 .id(Uuid::new_v4())
                 .name("a screen view")
                 .previous_name("previous screen")
+                .ttm("1701147392697")
                 .build()
                 .unwrap(),
         );
@@ -65,6 +66,7 @@ async fn flush_emitter() {
         let screenview_event = ScreenViewEvent::builder()
             .id(Uuid::new_v4())
             .name("a screen view")
+            .ttm("1701147392697".to_string())
             .previous_name("previous screen")
             .build()
             .unwrap();
@@ -109,6 +111,7 @@ async fn successful_send_after_retry() {
         .id(Uuid::new_v4())
         .name("a screen view")
         .previous_name("previous screen")
+        .ttm("1701147392697".to_string())
         .build()
         .unwrap();
 
