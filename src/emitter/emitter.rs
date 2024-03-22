@@ -16,7 +16,7 @@ use crate::Error;
 /// which are sent to the collector using a [HttpClient](crate::HttpClient).
 ///
 /// Implement this trait to use your own Emitter implementation on a tracker.
-pub trait Emitter {
+pub trait Emitter: Send + Sync {
     /// Add a [PayloadBuilder] to the Emitter
     fn add(&mut self, payload: PayloadBuilder) -> Result<(), Error>;
     /// Try to send all events in the Emitter's queue

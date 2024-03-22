@@ -73,7 +73,10 @@ mod tracker;
 
 pub use emitter::{BatchEmitter, Emitter, RetryPolicy};
 pub use error::Error;
-pub use event::{ScreenViewEvent, SelfDescribingEvent, SelfDescribingEventBuilder, StructuredEvent, TimingEvent};
+pub use event::{
+    PayloadAddable, ScreenViewEvent, SelfDescribingEvent, SelfDescribingEventBuilder,
+    StructuredEvent, TimingEvent,
+};
 pub use event_store::{EventStore, InMemoryEventStore};
 pub use http_client::{HttpClient, ReqwestClient};
 pub use payload::{Payload, PayloadBuilder, SelfDescribingJson};

@@ -45,7 +45,7 @@ impl Tracker {
     pub fn new(
         namespace: &str,
         app_id: &str,
-        emitter: impl Emitter + 'static + Send + Sync,
+        emitter: impl Emitter + 'static,
         subject: Option<Subject>,
     ) -> Tracker {
         Tracker {
